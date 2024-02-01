@@ -1,0 +1,63 @@
+version: '3'
+
+services:
+
+  pm1:
+    image: vettadock/mariadb-columnstore-docker
+    shm_size: '512mb'
+    hostname: cs1
+    container_name: cs1
+    volumes:
+      - ./data/data1:/var/lib/columnstore/data1
+      - ./data/data2:/var/lib/columnstore/data2
+      - ./data/data3:/var/lib/columnstore/data3
+      - ./data/storagemanager:/var/lib/columnstore/storagemanager
+    env_file:
+      - .env
+    depends_on:
+      - "pm3"
+    links:
+      - "pm2"
+      - "pm3"
+    ports:
+      - 3307:3306
+
+  pm2:
+    image: vettadock/mariadb-columnstore-docker
+    shm_size: '512mb'
+    hostname: cs2
+    container_name: cs2
+    volumes:
+      - ./data/data1:/var/lib/columnstore/data1
+      - ./data/data2:/var/lib/columnstore/data2
+      - ./data/data3:/var/lib/columnstore/data3
+      - ./data/storagemanager:/var/lib/columnstore/storagemanager
+    env_file:
+      - .env
+    depends_on:
+      - "pm3"
+    links:
+      - "pm3"
+    ports:
+      - 3308:3306
+
+  pm3:
+    image: vettadock/mariadb-columnstore-docker
+    shm_size: '512mb'
+    hostname: cs3
+    container_name: cs3
+    volumes:
+      - ./data/data1:/var/lib/columnstore/data1
+      - ./data/data2:/var/lib/columnstore/data2
+      - ./data/data3:/var/lib/columnstore/data3
+      - ./data/storagemanager:/var/lib/columnstore/storagemanager
+    env_file:
+      - .env
+    ports:
+      - 3309:3306
+
+volumes:
+  data1:
+  data2:
+  data3:
+  storagemanager:

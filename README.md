@@ -1,193 +1,28 @@
-![MariaDB](https://mariadb.com/wp-content/uploads/2019/11/mariadb-logo_blue-transparent.png)
+# MariaDB Columnstore Docker
 
-# Columnstore Docker Project
+This is a fork of [mariadb-columnstore-docker](https://github.com/mariadb-corporation/mariadb-columnstore-docker/tree/master) maintained by [Vettabase](https://vettabase.com/).
+The aim of this fork is to keep an updated version of MariaDB Community edition with Columnstore and the S3 engine for use with client installations,
+
+The official MariaDB docker currently does not support Columnstore of the S3 engine, an [issue](https://github.com/MariaDB/mariadb-docker/issues/457) is already open.
+Another [ticket](https://jira.mariadb.org/browse/MCOL-5646) has been raised to update the current Columnstore image, but we feel like it is not suitable for container deployment or orchestration.
+
+Some usage examples below or the `examples/` directory for runn Columnstore as single or multi-node deployments.
 
 ## Summary
+
 MariaDB ColumnStore is a columnar storage engine that utilizes a massively parallel distributed data architecture. It was built by porting InfiniDB to MariaDB and has been released under the GPL license.
 
 MariaDB ColumnStore is designed for big data scaling to process petabytes of data, linear scalability and exceptional performance with real-time response to analytical queries. It leverages the I/O benefits of columnar storage, compression, just-in-time projection, and horizontal and vertical partitioning to deliver tremendous performance when analyzing large data sets.
 
 ## Requirements
 
-Please install the following software packages before you begin.
+* A container runtime such as [Docker](https://www.docker.com/) or [Podman](https://podman.io/).
+* A shared volume mount for all servers when using a multi-node setup, or access to S3/S3-Compatible.
 
-*   [Docker](https://www.docker.com/get-started)
+## Usage
 
-## Docker Run Instructions (Single Node)
+    docker run -d -e 
 
-```
-docker run -d -p 3307:3306 --shm-size=512m -e PM1=mcs1 --hostname=mcs1 --name mcs1 mariadb/columnstore
-```
-```
-docker exec -it mcs1 provision mcs1
-```
-```
-Waiting for PM1 To Be Initialized .. done
-Adding PM(s) To Cluster ... done
-Restarting Cluster ... done
-Validating ColumnStore Engine ... done
-```
+### Multi-Node with CMAPI
 
-## Run Variables
-
-| Variable | Type | Default | Required |
-|---|---|---|---|
-| ADMIN_HOST | String | % | No |
-| ADMIN_PASS | String | C0lumnStore! | No |
-| ADMIN_USER | String | Admin | No |
-| CEJ_PASS | String | C0lumnStore! | No |
-| CEJ_USER | String | cej | No |
-| CGROUP | String | ./ | Yes |
-| CMAPI_KEY | String | somekey123 | No |
-| PM1 | Hostname | - | **Yes** |
-| S3_ACCESS_KEY_ID | String | None | No |
-| S3_BUCKET | String | None | No |
-| S3_ENDPOINT | URL | None | No |
-| S3_REGION | String | None | No |
-| S3_SECRET_ACCESS_KEY | String | None | No |
-| USE_S3_STORAGE | Boolean | false | No |
-
-## Docker Compose Instructions (Cluster)
-
-```
-git clone https://github.com/mariadb-corporation/mariadb-columnstore-docker
-```
-```
-cd mariadb-columnstore-docker
-```
-```
-cp .env_example .env
-```
-*   Edit **_.env_** with your custom settings
-```
-docker compose up -d
-```
-```
-docker exec -it mcs1 provision mcs1 mcs2 mcs3
-```
-```
-Waiting for PM1 To Be Initialized .... done
-Adding PM(s) To Cluster ... done
-Restarting Cluster ... done
-Validating ColumnStore Engine ... done
-```
-
-## Custom Build Instructions (Optional)
-
-```
-git clone https://github.com/mariadb-corporation/mariadb-columnstore-docker
-```
-```
-cd mariadb-columnstore-docker
-```
-```
-cp .env_example .env
-```
-```
-cp .secrets_example .secrets
-```
-*   Edit **_.env_** with your custom settings
-*   Edit **_.secrets_** with your [Enterprise Token](https://cloud.mariadb.com/csm?id=my_customer_token)
-```
-./build
-```
-
-## Access
-
-#### Database Access
-
-```
-mysql -h 127.0.0.1 -P 3307 -u admin -p
-```
-_The default password is: **C0lumnStore!**_
-
-#### MaxScale 1 GUI Access
-
-*   URL: `http://127.0.0.1:8989`
-*   username: `admin`
-*   password: `mariadb`
-
-#### MaxScale 2 GUI Access
-
-*   URL: `http://127.0.0.1:8990`
-*   username: `admin`
-*   password: `mariadb`
-
-#### Glossary Items
-*   **PM**: Performance Module
-*   **PM1**: Primary Database Node
-*   **PM2**: Secondary Database Node
-*   **PM3**: Tertiary Database Node
-*   **MX1**: Primary MaxScale Node
-*   **MX2**: Secondary MaxScale Node
-
-## CLI Instructions
-
-##### Set API Code:
-
-```
-mcs cluster set api-key --key <api_key>
-```
-
-###### Get Status:
-
-```
-mcs cluster status
-```
-
-###### Start Cluster:
-
-```
-mcs cluster start
-```
-
-###### Stop Cluster:
-
-```
-mcs cluster stop
-```
-
-###### Add Node:
-
-```
-mcs cluster node add --node <node>
-```
-
-###### Remove Node:
-
-```
-mcs cluster node remove --node <node>
-```
-
-###### Mode Set Read Only:
-
-```
-mcs cluster set mode --mode readonly
-```
-
-###### Mode Set Read/Write:
-
-```
-mcs cluster set mode --mode readwrite
-```
-
-## Log Info
-
-Logs are stored in ```/var/log/mariadb/columnstore```
-
-They are also available via the following command:
-```
-docker logs mcs1
-```
-
-## Simple Backup Script Example
-
-```
-#!/bin/bash
-rm -rf /backup
-mkdir -p /backup/{mysql,columnstore}
-mariadb-backup --user=root --backup --rsync --target-dir=/backup/mysql
-mcs cluster set mode --mode readonly
-rsync -av /var/lib/columnstore/ /backup/columnstore/
-mcs cluster set mode --mode readwrite
-```
+### Using S3 and MinIO
