@@ -1,0 +1,5 @@
+[mariadb]
+name = MariaDB
+baseurl = https://rpm.mariadb.org/10.11/centos/$releasever/$basearch
+gpgkey = https://rpm.mariadb.org/RPM-GPG-KEY-MariaDB
+gpgcheck = 1

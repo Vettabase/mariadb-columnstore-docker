@@ -1,4 +1,0 @@
-#!/usr/bin/env bash
-
-mcs-start
-tail -vf -n +1 /var/log/mariadb/columnstore/*.log
