@@ -5,4 +5,4 @@ all: build
 
 .PHONY: build
 build:
-	docker build --shm-size=512mb -t $(IMAGE):$(VERSION) .
+	docker build --rm --shm-size=512mb -t $(IMAGE):$(VERSION) .

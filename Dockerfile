@@ -6,10 +6,15 @@ RUN groupadd -r mysql && useradd -r -g mysql mysql --home-dir /var/lib/mysql
 RUN mkdir /docker-entrypoint-initdb.d
 ADD MariaDB.repo /etc/yum.repos.d/MariaDB.repo
 
-RUN dnf update -yq
-RUN dnf install -yq epel-release
-RUN dnf upgrade -yq
-RUN dnf install -yq MariaDB-server MariaDB-client MariaDB-columnstore-engine MariaDB-columnstore-cmapi MariaDB-s3-engine
+RUN dnf update -y
+RUN dnf install -y epel-release
+RUN dnf install -y \
+    bind-utils \
+    wget \
+    procps-ng
+RUN dnf upgrade -y
+RUN dnf install -y MariaDB-server MariaDB-client 
+RUN dnf install -y MariaDB-columnstore-engine MariaDB-s3-engine
 
 # Define ENV Variables
 ENV LANG=en_US.UTF-8
