@@ -1,4 +1,4 @@
-IMAGE        := vettabase/mariadb-columnstore-docker
+IMAGE        := vettadock/mariadb-columnstore-docker
 VERSION      := latest
 
 all: build
