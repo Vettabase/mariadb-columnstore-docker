@@ -6,7 +6,7 @@ The aim of this fork is to keep an updated version of MariaDB Community edition 
 The official MariaDB docker currently does not support Columnstore of the S3 engine, an [issue](https://github.com/MariaDB/mariadb-docker/issues/457) is already open.
 Another [ticket](https://jira.mariadb.org/browse/MCOL-5646) has been raised to update the current Columnstore image, but we feel like it is not suitable for container deployment or orchestration.
 
-Some usage examples below or the `examples/` directory for runn Columnstore as single or multi-node deployments.
+Some usage examples are below documented and in the `examples/`.
 
 ## Summary
 
