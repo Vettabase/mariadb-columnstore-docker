@@ -22,9 +22,6 @@ ADMIN_PASS="${ADMIN_PASS:-C0lumnStore!}"
 ADMIN_HOST="${ADMIN_HOST:-%}"
 CEJ_USER="${CEJ_USER:-cej}"
 CEJ_PASS="${CEJ_PASS:-C0lumnStore!}"
-MAX_USER="${MAX_USER:-maxscale}"
-MAX_PASS="${MAX_PASS:-C0lumnStore!}"
-MAX_HOST="${MAX_HOST:-%}"
 REP_USER="${REP_USER:-idbrep}"
 REP_PASS="${REP_PASS:-C0lumnStore!}"
 REP_HOST="${REP_HOST:-%}"
@@ -137,39 +134,6 @@ if [[ "${PM1_DNS}" == "${HOSTNAME}"* || "${PM1_DNS}" == "${HOSTNAME}" ]]; then
             exit 1
         fi
         echo 'Replication user created'
-
-        # Set Up MaxScale User
-        mariadb -e "
-            GRANT BINLOG ADMIN,
-            READ_ONLY ADMIN,
-            RELOAD,
-            BINLOG MONITOR,
-            SLAVE MONITOR,
-            REPLICATION MASTER ADMIN,
-            REPLICATION SLAVE ADMIN,
-            REPLICATION SLAVE,
-            SHOW DATABASES
-            ON *.* TO '${MAX_USER}'@'${MAX_HOST}' IDENTIFIED BY '${MAX_PASS}';
-            ALTER USER '${MAX_USER}'@'${MAX_HOST}' PASSWORD EXPIRE NEVER;
-        "
-        if [ $? -ne 0 ]; then
-            echo "ERROR: Creating user '${MAX_USER}'@'${MAX_HOST}'."
-            exit 1
-        fi
-        mariadb -e "
-            GRANT SELECT ON mysql.columns_priv TO '${MAX_USER}'@'${MAX_HOST}';
-            GRANT SELECT ON mysql.db TO '${MAX_USER}'@'${MAX_HOST}';
-            GRANT SELECT ON mysql.procs_priv TO '${MAX_USER}'@'${MAX_HOST}';
-            GRANT SELECT ON mysql.proxies_priv TO '${MAX_USER}'@'${MAX_HOST}';
-            GRANT SELECT ON mysql.roles_mapping TO '${MAX_USER}'@'${MAX_HOST}';
-            GRANT SELECT ON mysql.tables_priv TO '${MAX_USER}'@'${MAX_HOST}';
-            GRANT SELECT ON mysql.user TO '${MAX_USER}'@'${MAX_HOST}';
-        "
-        if [ $? -ne 0 ]; then
-            echo "ERROR: Granting SELECT to '${MAX_USER}'@'${MAX_HOST}'."
-            exit 1
-        fi
-        echo 'MaxScale user created'
 
         # Securing MariaDB Installation
         mariadb -e "
