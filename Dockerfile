@@ -10,7 +10,8 @@ RUN dnf update -y
 RUN dnf install -y epel-release
 RUN dnf install -y \
     bind-utils \
-    procps-ng
+    procps-ng \
+    glibc-langpack-en
 RUN dnf upgrade -y
 RUN dnf install -y MariaDB-server MariaDB-client 
 RUN dnf install -y MariaDB-columnstore-engine MariaDB-s3-engine
