@@ -21,7 +21,31 @@ MariaDB ColumnStore is designed for big data scaling to process petabytes of dat
 
 ## Usage
 
-    docker run -d -e 
+To start the container from the Dockerfile:
+
+    docker run -d -e --name mcs
+
+To start using `mariadb` CLI client:
+
+    docker exec -ti mcs mariadb
+
+To run a query in a non-interactive fashion from the host:
+
+    docker exec -ti mcs mariadb -e "SHOW SCHEMAS;"
+
+To take a [logical backup](https://mariadb.com/kb/en/mariadb-dump/) and write it into a file outside of the container:
+
+    docker exec -ti mcs mariadb-dump --all-databases --single-transaction > backup.sql
+
+The default user is `mysql`, and it can't sudo. To log into the container shell as root:
+
+    docker exec -ti -u 0 mcs bash
+
+TO DO:
+
+- Show how to use a Docker network
+- Show how to expose ports
+- Add recipes for Podman
 
 ### Multi-Node with CMAPI
 
