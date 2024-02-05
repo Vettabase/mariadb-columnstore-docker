@@ -1,12 +1,13 @@
 # MariaDB Columnstore Docker
 
 This is a fork of [mariadb-columnstore-docker](https://github.com/mariadb-corporation/mariadb-columnstore-docker/tree/master) maintained by [Vettabase](https://vettabase.com/).
-The aim of this fork is to keep an updated version of MariaDB Community edition with Columnstore and the S3 engine for use with client installations,
+The aim of this fork is to keep an updated version of MariaDB Community edition with Columnstore and the S3 engine for use with community and client installations,
 
-The official MariaDB docker currently does not support Columnstore of the S3 engine, an [issue](https://github.com/MariaDB/mariadb-docker/issues/457) is already open.
+The official MariaDB docker currently does not support Columnstore of the S3 engine, an [issue](https://github.com/MariaDB/mariadb-docker/issues/457) is already open to get this resolved.
+
 Another [ticket](https://jira.mariadb.org/browse/MCOL-5646) has been raised to update the current Columnstore image, but we feel like it is not suitable for container deployment or orchestration.
 
-Some usage examples are below documented and in the `examples/`.
+Some usage examples are documented below, and in the `examples/` directory.
 
 ## Summary
 
@@ -19,7 +20,13 @@ MariaDB ColumnStore is designed for big data scaling to process petabytes of dat
 * A container runtime such as [Docker](https://www.docker.com/) or [Podman](https://podman.io/).
 * A shared volume mount for all servers when using a multi-node setup, or access to S3/S3-Compatible.
 
-## Usage
+## Usage Examples
+
+### Single node with persistent storage
+
+    docker run -d -P 3307:3306 -v path/to/data:/var/lib/mysql vettadock/mariadb-columnstore-docker
+
+### Single node with S3
 
 To start the container from the Dockerfile:
 
@@ -43,10 +50,17 @@ The default user is `mysql`, and it can't sudo. To log into the container shell 
 
 TO DO:
 
-- Show how to use a Docker network
-- Show how to expose ports
-- Add recipes for Podman
+* Show how to use a Docker network
+* Show how to expose ports
+* Add recipes for Podman
+    docker run -d -e S3_X -e S3_Y -e S3_Z vettadock/mariadb-columnstore-docker
 
 ### Multi-Node with CMAPI
 
+    cd examples
+    docker compose up -d
+
 ### Using S3 and MinIO
+
+    docker run -d minio/minio
+    docker run -d -e S3_X -e S3_Y -e S3_Z vettadock/mariadb-columnstore-docker
