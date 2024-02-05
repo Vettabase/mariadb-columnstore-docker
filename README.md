@@ -60,6 +60,12 @@ The default user is `mysql`, and it can't sudo. To log into the container shell 
     docker run -d minio/minio
     docker run -d -e S3_X -e S3_Y -e S3_Z vettadock/mariadb-columnstore-docker
 
+## Environment Variables
+
+* USE_S3_STORAGE, set to non-empty value to configure MariaDB Columnstore for use with S3.
+* CROSS_ENGINE_USERNAME, use a different username for the Cross Engine Join user, configured in Columnstore.
+* CROSS_ENGINE_PASSWORD, use a different password from the randomly generated one for the Cross Engine Join user, configured in Columnstore.
+
 TO DO:
 
 * Show how to use a Docker network
