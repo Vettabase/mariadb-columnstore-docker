@@ -11,7 +11,8 @@ RUN dnf install -y epel-release
 RUN dnf install -y \
     bind-utils \
     procps-ng \
-    glibc-langpack-en
+    glibc-langpack-en \
+    pwgen
 RUN dnf upgrade -y
 RUN dnf install -y MariaDB-server MariaDB-client 
 RUN dnf install -y MariaDB-columnstore-engine MariaDB-s3-engine
@@ -23,6 +24,7 @@ ENV LC_ALL=en_US.UTF-8
 
 #VOLUME ["/etc/columnstore","/etc/my.cnf.d","/var/lib/mysql","/var/lib/columnstore"]
 
+COPY columnstore-init /bin/
 COPY docker-entrypoint.sh /usr/local/bin/
 USER mysql
 ENTRYPOINT ["docker-entrypoint.sh"]
