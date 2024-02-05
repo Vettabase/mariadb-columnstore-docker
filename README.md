@@ -41,6 +41,12 @@ The default user is `mysql`, and it can't sudo. To log into the container shell 
 
     docker exec -ti -u 0 mcs bash
 
+TO DO:
+
+- Show how to use a Docker network
+- Show how to expose ports
+- Add recipes for Podman
+
 ### Multi-Node with CMAPI
 
 ### Using S3 and MinIO
