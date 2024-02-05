@@ -10,7 +10,6 @@ RUN dnf update -y
 RUN dnf install -y epel-release
 RUN dnf install -y \
     bind-utils \
-    wget \
     procps-ng \
     glibc-langpack-en
 RUN dnf upgrade -y
