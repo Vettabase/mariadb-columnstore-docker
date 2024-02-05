@@ -22,12 +22,6 @@ MariaDB ColumnStore is designed for big data scaling to process petabytes of dat
 
 ## Usage Examples
 
-### Single node with persistent storage
-
-    docker run -d -P 3307:3306 -v path/to/data:/var/lib/mysql vettadock/mariadb-columnstore-docker
-
-### Single node with S3
-
 To start the container from the Dockerfile:
 
     docker run -d -e --name mcs
@@ -48,11 +42,12 @@ The default user is `mysql`, and it can't sudo. To log into the container shell 
 
     docker exec -ti -u 0 mcs bash
 
-TO DO:
+### Single node with persistent storage
 
-* Show how to use a Docker network
-* Show how to expose ports
-* Add recipes for Podman
+    docker run -d -P 3307:3306 -v path/to/data:/var/lib/mysql vettadock/mariadb-columnstore-docker
+
+### Single node with S3
+
     docker run -d -e S3_X -e S3_Y -e S3_Z vettadock/mariadb-columnstore-docker
 
 ### Multi-Node with CMAPI
@@ -64,3 +59,9 @@ TO DO:
 
     docker run -d minio/minio
     docker run -d -e S3_X -e S3_Y -e S3_Z vettadock/mariadb-columnstore-docker
+
+TO DO:
+
+* Show how to use a Docker network
+* Show how to expose ports
+* Add recipes for Podman

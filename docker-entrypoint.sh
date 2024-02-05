@@ -2,6 +2,9 @@
 set -eo pipefail
 shopt -s nullglob
 
+JEMALLOC_PATH="/usr/lib64/libjemalloc.so.2"
+export LD_PRELOAD=${JEMALLOC_PATH}
+
 # logging functions
 mysql_log() {
 	local type="$1"; shift
@@ -115,6 +118,67 @@ mysql_get_config() {
 	"$@" "${_verboseHelpArgs[@]}" 2>/dev/null \
 		| awk -v conf="$conf" '$1 == conf && /^[^ \t]/ { sub(/^[^ \t]+[ \t]+/, ""); print; exit }'
 	# match "datadir      /some/path with/spaces in/it here" but not "--xyz=abc\n     datadir (xyz)"
+}
+
+
+mariadb_configure_cross_join() {
+# Set Credential Defaults If Missing
+CROSSENGINEJOIN_USER="${CROSSENGINEJOIN_USER:-cross_engine_joiner}"
+CROSSENGINEJOIN_PASS="${CROSSENGINEJOIN_PASS:-pwgen --numerals --capitalize 32 1}"
+
+        mariadb -e "
+            GRANT SELECT, PROCESS
+            ON *.* TO '${CROSSENGINEJOIN_USER}'@'127.0.0.1'
+            IDENTIFIED BY '${CROSSENGINEJOIN_PASS}';
+            ALTER USER '${CROSSENGINEJOIN_USER}'@'127.0.0.1' PASSWORD EXPIRE NEVER;
+        "
+        if [ $? -ne 0 ]; then
+            echo 'ERROR: During cross engine join user creation.'
+            exit 1
+        fi
+        mcsSetConfig CrossEngineSupport User "${CROSSENGINEJOIN_USER}"
+        mcsSetConfig CrossEngineSupport Password "${CROSSENGINEJOIN_PASS}"
+        mcsSetConfig CrossEngineSupport host "127.0.0.1"
+}
+
+mariadb_configure_s3() {
+
+USE_S3_STORAGE="${USE_S3_STORAGE:-false}"
+S3_REGION="${S3_REGION:-us-west-2}"
+S3_BUCKET="${S3_BUCKET:-mybucket}"
+S3_ENDPOINT="${S3_ENDPOINT:-s3.us-west-2.amazonaws.com}"
+S3_ACCESS_KEY_ID="${S3_ACCESS_KEY_ID:-fakeaccesskeyid}"
+S3_SECRET_ACCESS_KEY="${S3_SECRET_ACCESS_KEY:-fakesecretaccesskey}"
+
+# Storagemanager Configuration
+if [[ ${USE_S3_STORAGE} = true ]]; then
+    mcsSetConfig Installation DBRootStorageType "StorageManager"
+    mcsSetConfig StorageManager Enabled "Y"
+    mcsSetConfig SystemConfig DataFilePlugin "libcloudio.so"
+    sed -i "s|cache_size = 2g|cache_size = 4g|" /etc/columnstore/storagemanager.cnf
+    sed -i "s|^service =.*|service = S3|" /etc/columnstore/storagemanager.cnf
+    sed -i "s|^region =.*|region = ${S3_REGION}|" /etc/columnstore/storagemanager.cnf
+    sed -i "s|^bucket =.*|bucket = ${S3_BUCKET}|" /etc/columnstore/storagemanager.cnf
+    sed -i "s|^# endpoint =.*|endpoint = ${S3_ENDPOINT}|" /etc/columnstore/storagemanager.cnf
+    sed -i "s|^# aws_access_key_id =.*|aws_access_key_id = ${S3_ACCESS_KEY_ID}|" /etc/columnstore/storagemanager.cnf
+    sed -i "s|^# aws_secret_access_key =.*|aws_secret_access_key = ${S3_SECRET_ACCESS_KEY}|" /etc/columnstore/storagemanager.cnf
+    if ! /usr/bin/testS3Connection >/var/log/mariadb/columnstore/testS3Connection.log 2>&1; then
+        echo "Error: S3 Connectivity Failed"
+        exit 1
+    fi
+fi
+}
+
+mariadb_configure_columnstore() {
+CGROUP="${CGROUP:-./}"
+mcsSetConfig SystemConfig CGroup "${CGROUP}"
+
+cat <<EOT >>/etc/my.cnf.d/columnstore.cnf
+${RET}# Docker Settings
+collation_server = utf8_general_ci
+character_set_server = utf8
+EOT
+
 }
 
 # Do a temporary startup of the MariaDB server, for init purposes
