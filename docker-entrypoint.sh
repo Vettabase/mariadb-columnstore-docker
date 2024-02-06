@@ -2,6 +2,7 @@
 set -eo pipefail
 shopt -s nullglob
 
+CS_READY="/etc/columnstore/container-ready"
 JEMALLOC_PATH="/usr/lib64/libjemalloc.so.2"
 export LD_PRELOAD=${JEMALLOC_PATH}
 
@@ -122,7 +123,6 @@ mysql_get_config() {
 
 
 mariadb_configure_cross_join() {
-# Set Credential Defaults If Missing
 CROSSENGINEJOIN_USER="${CROSSENGINEJOIN_USER:-cross_engine_joiner}"
 CROSSENGINEJOIN_PASS="${CROSSENGINEJOIN_PASS:-pwgen --numerals --capitalize 32 1}"
 
@@ -143,15 +143,66 @@ CROSSENGINEJOIN_PASS="${CROSSENGINEJOIN_PASS:-pwgen --numerals --capitalize 32 1
 
 mariadb_configure_s3() {
 
-USE_S3_STORAGE="${USE_S3_STORAGE:-false}"
-S3_REGION="${S3_REGION:-us-west-2}"
-S3_BUCKET="${S3_BUCKET:-mybucket}"
-S3_ENDPOINT="${S3_ENDPOINT:-s3.us-west-2.amazonaws.com}"
-S3_ACCESS_KEY_ID="${S3_ACCESS_KEY_ID:-fakeaccesskeyid}"
-S3_SECRET_ACCESS_KEY="${S3_SECRET_ACCESS_KEY:-fakesecretaccesskey}"
+if [[ -n ${USE_S3_STORAGE}  ]]; then
 
-# Storagemanager Configuration
-if [[ ${USE_S3_STORAGE} = true ]]; then
+	declare -A S3_CNF
+	S3_CNF["s3"]="ON"
+
+	if [[ -n ${S3_BUCKET} ]]; then
+		S3_CNF["s3_bucket"]=${S3_BUCKET}
+	else
+		mysql_error $"USE_S3_STORAGE is set but missing S3_BUCKET"
+	fi
+
+	if [[ -n ${S3_REGION} ]]; then
+		S3_CNF["s3_region"]=${S3_REGION}
+	else
+		mysql_error $"USE_S3_STORAGE is set but missing S3_REGION"
+	fi
+
+	if [[ -n ${S3_ACCESS_KEY} ]]; then
+		S3_CNF["s3_access_key"]=${S3_ACCESS_KEY}
+	else
+		mysql_error $"USE_S3_STORAGE is set but missing S3_ACCESS_KEY"
+	fi
+
+	if [[ -n ${S3_SECRET_KEY} ]]; then
+		S3_CNF["s3_secret_key"]=${S3_SECRET_KEY}
+	else
+		mysql_error $"USE_S3_STORAGE is set but missing S3_SECRET_KEY"
+	fi
+
+	# Custom S3 Compatible host
+	if [[ -n ${S3_HOSTNAME} ]]; then
+		S3_CNF["s3_bucket"]=${S3_HOSTNAME}
+	fi
+
+	if [[ -n ${S3_PORT} ]]; then
+		if [[ -z ${S3_HOSTNAME} ]]; then
+			mysql_error $"S3_PORT configured but Missing S3_HOSTNAME"
+		fi
+		S3_CNF["s3_port"]=${S3_PORT}
+		S3_CNF["s3_use_http"]="ON"
+	fi
+
+	# Storage Manager endpoint URL and port
+	S3_ENDPOINT="${S3_ENDPOINT:-s3.${S3_REGION}.amazonaws.com}"
+	S3_ENDPOINT_PORT=""
+	if [[ -n ${S3_PORT} ]]; then
+		S3_ENDPOINT_PORT="port_number = ${S3_PORT}"
+	fi
+
+	S3_CONFIG_PATH="/etc/my.cnf.d/s3.cnf"
+	for section in "mariadb" "aria_s3_copy"; do
+		echo "[${section}]" >> $S3_CONFIG_PATH
+		for	S3_VAR in ${S3_CNF}; do
+			mysql_note $"Setting ${S3_VAR} in section ${section}"
+			echo "${S3_VAR}=${!S3_VAR}" >> $S3_CONFIG_PATH
+		done
+		echo "" >> $S3_CONFIG_PATH
+	done
+
+    mysql_note $"Configuring StorageManager to use S3"
     mcsSetConfig Installation DBRootStorageType "StorageManager"
     mcsSetConfig StorageManager Enabled "Y"
     mcsSetConfig SystemConfig DataFilePlugin "libcloudio.so"
@@ -159,26 +210,37 @@ if [[ ${USE_S3_STORAGE} = true ]]; then
     sed -i "s|^service =.*|service = S3|" /etc/columnstore/storagemanager.cnf
     sed -i "s|^region =.*|region = ${S3_REGION}|" /etc/columnstore/storagemanager.cnf
     sed -i "s|^bucket =.*|bucket = ${S3_BUCKET}|" /etc/columnstore/storagemanager.cnf
-    sed -i "s|^# endpoint =.*|endpoint = ${S3_ENDPOINT}|" /etc/columnstore/storagemanager.cnf
+    sed -i "s|^# endpoint =.*|endpoint = ${S3_ENDPOINT}\n${S3_PORT}|" /etc/columnstore/storagemanager.cnf
     sed -i "s|^# aws_access_key_id =.*|aws_access_key_id = ${S3_ACCESS_KEY_ID}|" /etc/columnstore/storagemanager.cnf
     sed -i "s|^# aws_secret_access_key =.*|aws_secret_access_key = ${S3_SECRET_ACCESS_KEY}|" /etc/columnstore/storagemanager.cnf
     if ! /usr/bin/testS3Connection >/var/log/mariadb/columnstore/testS3Connection.log 2>&1; then
-        echo "Error: S3 Connectivity Failed"
-        exit 1
+		mysql_error $"Error: S3 Connectivity Failed"
     fi
 fi
 }
 
 mariadb_configure_columnstore() {
-CGROUP="${CGROUP:-./}"
-mcsSetConfig SystemConfig CGroup "${CGROUP}"
+	if [[ ! -e $CS_READY ]]; then
+		mariadb_configure_cross_join
+		mariadb_configure_s3
+		CGROUP="${CGROUP:-./}"
+		mcsSetConfig SystemConfig CGroup "${CGROUP}"
+		echo "collation_server=utf8_general_ci" >> /etc/my.cnf.d/columnstore.cnf
+		echo "character_set_server=utf8" >> /etc/my.cnf.d/columnstore.cnf
+	fi
+	echo 1 > /etc
+}
 
-cat <<EOT >>/etc/my.cnf.d/columnstore.cnf
-${RET}# Docker Settings
-collation_server = utf8_general_ci
-character_set_server = utf8
-EOT
-
+mariadb_start_columnstore() {
+	if [[ -e $CS_READY ]]; then
+		if mcs cluster start &>/dev/null; then
+			mysql_note $"Started Columnstore"
+		else
+			mysql_error $"Failed to start Columnstore"
+		fi
+	else
+		mysql_error $"Columnstore configuration failed"
+	fi
 }
 
 # Do a temporary startup of the MariaDB server, for init purposes
@@ -593,6 +655,8 @@ docker_mariadb_init()
 			SET PASSWORD FOR 'root'@'localhost'= '${MARIADB_ROOT_PASSWORD_HASH}';
 		EOSQL
 	fi
+
+	mariadb_configure_columnstore
 
 	mysql_note "Stopping temporary server"
 	docker_temp_server_stop

@@ -63,11 +63,20 @@ The default user is `mysql`, and it can't sudo. To log into the container shell 
 ## Environment Variables
 
 * USE_S3_STORAGE, set to non-empty value to configure MariaDB Columnstore for use with S3.
-* CROSS_ENGINE_USERNAME, use a different username for the Cross Engine Join user, configured in Columnstore.
-* CROSS_ENGINE_PASSWORD, use a different password from the randomly generated one for the Cross Engine Join user, configured in Columnstore.
+* S3_BUCKET, the name of the bucket to use.
+* S3_REGION, the S3 region name.
+* S3_ACCESS_KEY, your AWS Access Key.
+* S3_SECRET_KEY, your AWS Secret Key.
+* S3_HOSTNAME, set a custom hostname from the default of `s3.amazonaws.com`, also sets `endpoint` in columnstore Storage Manager. Required when using services such as [MinIO](https://min.io/).
+* S3_PORT, the S3 port number, the default is `0`
+* S3_USE_HTTP, set to non-empty value. Requiered for services such as MinIO.
+* CROSS_ENGINE_USERNAME, Set a custom username for Cross Engine Join support in Columnstore. The default username is `cross_engine_joiner`.
+* CROSS_ENGINE_PASSWORD, Set a custom password for Cross Engine Join support in Columnstore. The default password is randomised using `pwgen`.
 
 TO DO:
 
 * Show how to use a Docker network
 * Show how to expose ports
 * Add recipes for Podman
+* Inherit AWS credentials from user environment
+* Make AWS credentials optoinally mountable
