@@ -25,7 +25,7 @@ ENV LC_ALL=en_US.UTF-8
 #VOLUME ["/etc/columnstore","/etc/my.cnf.d","/var/lib/mysql","/var/lib/columnstore"]
 
 COPY docker-entrypoint.sh /usr/local/bin/
-USER mysql
 ENTRYPOINT ["docker-entrypoint.sh"]
 EXPOSE 3306
+USER mysql
 CMD ["mariadbd"]

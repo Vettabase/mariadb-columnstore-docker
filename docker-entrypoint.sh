@@ -123,8 +123,8 @@ mysql_get_config() {
 
 
 mariadb_configure_cross_join() {
-CROSSENGINEJOIN_USER="${CROSSENGINEJOIN_USER:-cross_engine_joiner}"
-CROSSENGINEJOIN_PASS="${CROSSENGINEJOIN_PASS:-pwgen --numerals --capitalize 32 1}"
+	CROSSENGINEJOIN_USER="${CROSSENGINEJOIN_USER:-cross_engine_joiner}"
+	CROSSENGINEJOIN_PASS="${CROSSENGINEJOIN_PASS:-$(pwgen --numerals --capitalize 32 1)}"
 
         mariadb -e "
             GRANT SELECT, PROCESS
@@ -143,7 +143,11 @@ CROSSENGINEJOIN_PASS="${CROSSENGINEJOIN_PASS:-pwgen --numerals --capitalize 32 1
 
 mariadb_configure_s3() {
 
-if [[ -n ${USE_S3_STORAGE}  ]]; then
+	if [[ -z ${USE_S3_STORAGE}  ]]; then
+		return
+	fi
+
+	mysql_note $"Configuring S3"
 
 	declare -A S3_CNF
 	S3_CNF["s3"]="ON"
@@ -193,6 +197,8 @@ if [[ -n ${USE_S3_STORAGE}  ]]; then
 	fi
 
 	S3_CONFIG_PATH="/etc/my.cnf.d/s3.cnf"
+	sed -i "s|^#plugin-maturity.*|plugin-maturity = alpha" $S3_CONFIG_PATH
+
 	for section in "mariadb" "aria_s3_copy"; do
 		echo "[${section}]" >> $S3_CONFIG_PATH
 		for	S3_VAR in ${S3_CNF}; do
@@ -206,7 +212,8 @@ if [[ -n ${USE_S3_STORAGE}  ]]; then
     mcsSetConfig Installation DBRootStorageType "StorageManager"
     mcsSetConfig StorageManager Enabled "Y"
     mcsSetConfig SystemConfig DataFilePlugin "libcloudio.so"
-    sed -i "s|cache_size = 2g|cache_size = 4g|" /etc/columnstore/storagemanager.cnf
+    sed -i "s|service = LocalStorage|service = S3|" /etc/columnstore/storagemanager.cnf
+    #sed -i "s|cache_size = 2g|cache_size = 4g|" /etc/columnstore/storagemanager.cnf
     sed -i "s|^service =.*|service = S3|" /etc/columnstore/storagemanager.cnf
     sed -i "s|^region =.*|region = ${S3_REGION}|" /etc/columnstore/storagemanager.cnf
     sed -i "s|^bucket =.*|bucket = ${S3_BUCKET}|" /etc/columnstore/storagemanager.cnf
@@ -216,7 +223,6 @@ if [[ -n ${USE_S3_STORAGE}  ]]; then
     if ! /usr/bin/testS3Connection >/var/log/mariadb/columnstore/testS3Connection.log 2>&1; then
 		mysql_error $"Error: S3 Connectivity Failed"
     fi
-fi
 }
 
 mariadb_configure_columnstore() {
@@ -228,7 +234,7 @@ mariadb_configure_columnstore() {
 		echo "collation_server=utf8_general_ci" >> /etc/my.cnf.d/columnstore.cnf
 		echo "character_set_server=utf8" >> /etc/my.cnf.d/columnstore.cnf
 	fi
-	echo 1 > /etc
+	echo 1 > $CS_READY
 }
 
 mariadb_start_columnstore() {
