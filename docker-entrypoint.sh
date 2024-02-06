@@ -126,19 +126,12 @@ mariadb_configure_cross_join() {
 	CROSSENGINEJOIN_USER="${CROSSENGINEJOIN_USER:-cross_engine_joiner}"
 	CROSSENGINEJOIN_PASS="${CROSSENGINEJOIN_PASS:-$(pwgen --numerals --capitalize 32 1)}"
 
-        mariadb -e "
-            GRANT SELECT, PROCESS
-            ON *.* TO '${CROSSENGINEJOIN_USER}'@'127.0.0.1'
-            IDENTIFIED BY '${CROSSENGINEJOIN_PASS}';
-            ALTER USER '${CROSSENGINEJOIN_USER}'@'127.0.0.1' PASSWORD EXPIRE NEVER;
-        "
-        if [ $? -ne 0 ]; then
-            echo 'ERROR: During cross engine join user creation.'
-            exit 1
-        fi
-        mcsSetConfig CrossEngineSupport User "${CROSSENGINEJOIN_USER}"
-        mcsSetConfig CrossEngineSupport Password "${CROSSENGINEJOIN_PASS}"
-        mcsSetConfig CrossEngineSupport host "127.0.0.1"
+	mcsSetConfig CrossEngineSupport User "${CROSSENGINEJOIN_USER}"
+	mcsSetConfig CrossEngineSupport Password "${CROSSENGINEJOIN_PASS}"
+	mcsSetConfig CrossEngineSupport host "127.0.0.1"
+
+	echo "CREATE USER '${CROSSENGINEJOIN_USER}'@'127.0.0.1' IDENTIFIED BY '${CROSSENGINEJOIN_PASS}';"
+	echo "GRANT SELECT, PROCESS ON *.* TO '${CROSSENGINEJOIN_USER}'@'127.0.0.1';"
 }
 
 mariadb_configure_s3() {
@@ -227,7 +220,6 @@ mariadb_configure_s3() {
 
 mariadb_configure_columnstore() {
 	if [[ ! -e $CS_READY ]]; then
-		mariadb_configure_cross_join
 		mariadb_configure_s3
 		CGROUP="${CGROUP:-./}"
 		mcsSetConfig SystemConfig CGroup "${CGROUP}"
@@ -562,6 +554,8 @@ docker_setup_db() {
 		fi
 	fi
 
+	local createCrossEngineJoinUser=mariadb_configure_cross_join
+
 	# To create replica user
 	local createReplicaUser=
 	local changeMasterTo=
@@ -597,6 +591,7 @@ docker_setup_db() {
 
 		${rootLocalhostPass}
 		${rootCreate}
+		${createCrossEngineJoinUser}
 		${mysqlAtLocalhost}
 		${mysqlAtLocalhostGrants}
 		${healthCheckUser}
@@ -650,6 +645,7 @@ docker_mariadb_init()
 	docker_temp_server_start "$@"
 	mysql_note "Temporary server started."
 
+	mariadb_configure_columnstore
 	docker_setup_db
 	docker_process_init_files /docker-entrypoint-initdb.d/*
 	# Wait until after /docker-entrypoint-initdb.d is performed before setting
@@ -662,7 +658,6 @@ docker_mariadb_init()
 		EOSQL
 	fi
 
-	mariadb_configure_columnstore
 
 	mysql_note "Stopping temporary server"
 	docker_temp_server_stop
