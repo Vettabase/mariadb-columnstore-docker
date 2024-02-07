@@ -1,4 +1,4 @@
-# MariaDB Columnstore Docker
+# MariaDB Columnstore Docker Image
 
 This is a fork of [mariadb-columnstore-docker](https://github.com/mariadb-corporation/mariadb-columnstore-docker/tree/master) maintained by [Vettabase](https://vettabase.com/).
 The aim of this fork is to keep an updated version of MariaDB Community edition with Columnstore and the S3 engine for use by the community and production installations.
@@ -24,7 +24,7 @@ MariaDB ColumnStore is designed for big data scaling to process petabytes of dat
 
 To start the container from the Dockerfile:
 
-    docker run -d -e --name mcs
+    docker run -d -e MARIADB_RANDOM_ROOT_PASSOWRD --name mcs vettadock/mariadb-columnstore
 
 To start using `mariadb` CLI client:
 
@@ -37,10 +37,6 @@ To run a query in a non-interactive fashion from the host:
 To take a [logical backup](https://mariadb.com/kb/en/mariadb-dump/) and write it into a file outside of the container:
 
     docker exec -ti mcs mariadb-dump --all-databases --single-transaction > backup.sql
-
-The default user is `mysql`, and it can't sudo. To log into the container shell as root:
-
-    docker exec -ti -u 0 mcs bash
 
 ### Single node with persistent storage
 
