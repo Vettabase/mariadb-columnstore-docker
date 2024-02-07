@@ -19,16 +19,14 @@ RUN dnf upgrade -y
 RUN dnf install -y MariaDB-server MariaDB-client 
 RUN dnf install -y MariaDB-columnstore-engine MariaDB-s3-engine
 
-# add gosu for easy step-down from root
-# https://github.com/tianon/gosu/releases
-# gosu key is B42F6819007F00F88E364FD4036A9C25BF357DD4
 ENV GOSU_VERSION 1.17
 ENV GOSU_ARCH am64
+ENV GOSU_KEY  B42F6819007F00F88E364FD4036A9C25BF357DD4
 RUN wget -q -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/${GOSU_VERSION}/gosu-${GOSU_ARCH}"; \
     wget -q -O /usr/local/bin/gosu.asc "https://github.com/tianon/gosu/releases/download/${GOSU_VERSION}/gosu-${GOSU_ARCH}.asc"; \
     GNUPGHOME="$(mktemp -d)"; \
     export GNUPGHOME; \
-    gpg --batch --keyserver hkps://keys.openpgp.org --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4; \
+    gpg --batch --keyserver hkps://keys.openpgp.org --recv-keys ${GOSU_KEY}; \
     for key in $GPG_KEYS; do \
     gpg --batch --keyserver keyserver.ubuntu.com --recv-keys "$key"; \
     done; \
@@ -43,7 +41,6 @@ RUN wget -q -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/down
     gosu --version; \
     gosu nobody true
 
-# Define ENV Variables
 ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US.UTF-8
 ENV LC_ALL=en_US.UTF-8
