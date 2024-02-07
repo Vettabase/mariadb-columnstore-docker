@@ -231,14 +231,24 @@ mariadb_configure_columnstore() {
 
 mariadb_start_columnstore() {
 	if [[ -e $CS_READY ]]; then
-		if mcs cluster start &>/dev/null; then
-			mysql_note $"Started Columnstore"
-		else
-			mysql_error $"Failed to start Columnstore"
-		fi
-	else
-		mysql_error $"Columnstore configuration failed"
+		# prevent nodes using shared storage manager from stepping on each other when initializing
+		# flock will open up an exclusive file lock to run atomic operations
+		#exec {fd_lock}>/var/lib/columnstore/storagemanager/storagemanager-lock
+		#flock -n "$fd_lock" || exit 0
+
+		MALLOC_CONF=''
+		LD_PRELOAD=$(ldconfig -p | grep -m1 libjemalloc | awk '{print $1}')
+		workernode DBRM_Worker1 &
+		controllernode &
+		PrimProc &
+		WriteEngineServer &
+		DMLProc &
+		DDLProc &
+		'/usr/bin/dbbuilder 7' mysql 1> /var/log/mariadb/columnstore/install/dbbuilder.log
+		#flock -u "$fd_lock"
+		wait -n
 	fi
+
 }
 
 # Do a temporary startup of the MariaDB server, for init purposes

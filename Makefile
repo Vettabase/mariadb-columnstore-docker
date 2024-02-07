@@ -1,8 +1,12 @@
-IMAGE        := vettadock/mariadb-columnstore-docker
-VERSION      := latest
+IMAGE        := vettadock/mariadb-columnstore
+VERSION      := dev
 
 all: build
 
 .PHONY: build
 build:
-	docker build --rm --shm-size=512mb -t $(IMAGE):$(VERSION) .
+	docker build --shm-size=512mb -t $(IMAGE):$(VERSION) .
+
+.PHONY: push
+push:
+	docker push $(IMAGE):$(VERSION)
