@@ -38,19 +38,21 @@ RUN wget -q -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/down
     fi; \
     gpg --batch --verify /usr/local/bin/gosu.asc /usr/local/bin/gosu; \
     gpgconf --kill all; \
-    rm -rf "$GNUPGHOME" /usr/local/bin/gosu.asc;
+    rm -rf "$GNUPGHOME" /usr/local/bin/gosu.asc; \
+    chmod +x /usr/local/bin/gosu; \
+    gosu --version; \
+    gosu nobody true
 
 # Define ENV Variables
 ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US.UTF-8
 ENV LC_ALL=en_US.UTF-8
 
-#VOLUME ["/etc/columnstore","/etc/my.cnf.d","/var/lib/mysql","/var/lib/columnstore"]
+VOLUME ["/etc/columnstore","/etc/my.cnf.d","/var/lib/mysql","/var/lib/columnstore"]
 
 RUN mkdir /docker-entrypint-initdb.d
 
 COPY docker-entrypoint.sh /usr/local/bin/
 ENTRYPOINT ["/usr/bin/tini","--","docker-entrypoint.sh"]
 EXPOSE 3306
-#USER mysql
 CMD ["mariadbd"]

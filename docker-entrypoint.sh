@@ -2,10 +2,6 @@
 set -eo pipefail
 shopt -s nullglob
 
-CS_READY="/etc/columnstore/container-ready"
-JEMALLOC_PATH="/usr/lib64/libjemalloc.so.2"
-export LD_PRELOAD=${JEMALLOC_PATH}
-
 # logging functions
 mysql_log() {
 	local type="$1"; shift
@@ -123,6 +119,7 @@ mysql_get_config() {
 
 
 mariadb_configure_cross_join() {
+	mysql_note $"Setting up Cross Join User"
 	CROSSENGINEJOIN_USER="${CROSSENGINEJOIN_USER:-cross_engine_joiner}"
 	CROSSENGINEJOIN_PASS="${CROSSENGINEJOIN_PASS:-$(pwgen --numerals --capitalize 32 1)}"
 
@@ -219,36 +216,30 @@ mariadb_configure_s3() {
 }
 
 mariadb_configure_columnstore() {
-	if [[ ! -e $CS_READY ]]; then
-		mariadb_configure_s3
-		CGROUP="${CGROUP:-./}"
-		mcsSetConfig SystemConfig CGroup "${CGROUP}"
-		echo "collation_server=utf8_general_ci" >> /etc/my.cnf.d/columnstore.cnf
-		echo "character_set_server=utf8" >> /etc/my.cnf.d/columnstore.cnf
-	fi
-	echo 1 > $CS_READY
+	CGROUP="${CGROUP:-./}"
+	mcsSetConfig SystemConfig CGroup "${CGROUP}"
+	echo "collation_server=utf8_general_ci" >> /etc/my.cnf.d/columnstore.cnf
+	echo "character_set_server=utf8" >> /etc/my.cnf.d/columnstore.cnf
 }
 
 mariadb_start_columnstore() {
-	if [[ -e $CS_READY ]]; then
-		# prevent nodes using shared storage manager from stepping on each other when initializing
-		# flock will open up an exclusive file lock to run atomic operations
-		#exec {fd_lock}>/var/lib/columnstore/storagemanager/storagemanager-lock
-		#flock -n "$fd_lock" || exit 0
+	mysql_note $"Starting Columnstore"
+	# prevent nodes using shared storage manager from stepping on each other when initializing
+	# flock will open up an exclusive file lock to run atomic operations
+	#exec {fd_lock}>/var/lib/columnstore/storagemanager/storagemanager-lock
+	#flock -n "$fd_lock" || exit 0
 
-		MALLOC_CONF=''
-		LD_PRELOAD=$(ldconfig -p | grep -m1 libjemalloc | awk '{print $1}')
-		workernode DBRM_Worker1 &
-		controllernode &
-		PrimProc &
-		WriteEngineServer &
-		DMLProc &
-		DDLProc &
-		'/usr/bin/dbbuilder 7' mysql 1> /var/log/mariadb/columnstore/install/dbbuilder.log
-		#flock -u "$fd_lock"
-		wait -n
-	fi
-
+	MALLOC_CONF=''
+	LD_PRELOAD=$(ldconfig -p | grep -m1 libjemalloc | awk '{print $1}')
+	workernode DBRM_Worker1 &
+	controllernode &
+	PrimProc &
+	WriteEngineServer &
+	DMLProc &
+	DDLProc &
+	dbbuilder 7 mysql 1> /var/log/mariadb/columnstore/install/dbbuilder.log
+	#flock -u "$fd_lock"
+	wait -n
 }
 
 # Do a temporary startup of the MariaDB server, for init purposes
@@ -655,7 +646,6 @@ docker_mariadb_init()
 	docker_temp_server_start "$@"
 	mysql_note "Temporary server started."
 
-	mariadb_configure_columnstore
 	docker_setup_db
 	docker_process_init_files /docker-entrypoint-initdb.d/*
 	# Wait until after /docker-entrypoint-initdb.d is performed before setting
@@ -776,6 +766,7 @@ _main() {
 		# Load various environment variables
 		docker_setup_env "$@"
 		docker_create_db_directories
+		mariadb_start_columnstore
 
 		# If container is started as root user, restart as dedicated mysql user
 		if [ "$(id -u)" = "0" ]; then
@@ -788,16 +779,18 @@ _main() {
 			docker_verify_minimum_env
 
 			docker_mariadb_init "$@"
-		# MDEV-27636 mariadb_upgrade --check-if-upgrade-is-needed cannot be run offline
-		#elif mysql_upgrade --check-if-upgrade-is-needed; then
-		elif _check_if_upgrade_is_needed; then
-			docker_mariadb_upgrade "$@"
+			mariadb_configure_columnstore
+			mariadb_configure_s3
+			# MDEV-27636 mariadb_upgrade --check-if-upgrade-is-needed cannot be run offline
+			#elif mysql_upgrade --check-if-upgrade-is-needed; then
+			elif _check_if_upgrade_is_needed; then
+				docker_mariadb_upgrade "$@"
+			fi
 		fi
-	fi
-	exec "$@"
-}
+		exec "$@"
+	}
 
-# If we are sourced from elsewhere, don't perform any further actions
-if ! _is_sourced; then
-	_main "$@"
-fi
+	# If we are sourced from elsewhere, don't perform any further actions
+	if ! _is_sourced; then
+		_main "$@"
+	fi
