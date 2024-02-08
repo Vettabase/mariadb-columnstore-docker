@@ -236,17 +236,11 @@ mariadb_start_columnstore() {
 	DBRM_WORKER="DBRM_Worker${NODE_NUMBER}"
 	mysql_note $"Columnstore Node Number is ${DBRM_WORKER}"
 	workernode $DBRM_WORKER &
-	sleep 5
 	controllernode &
-	sleep 5
 	PrimProc &
-	sleep 5
 	WriteEngineServer &
-	sleep 5
 	DMLProc &
-	sleep 5
 	DDLProc &
-	sleep 5
 	mysql_note $"Running Columnstore DB Builder"
 	dbbuilder 7 docker_process_sql 1> /var/log/mariadb/columnstore/install/dbbuilder.log
 	sleep 5
