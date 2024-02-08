@@ -115,14 +115,19 @@ mariadb_start_columnstore() {
 	DBRM_WORKER="DBRM_Worker${NODE_NUMBER}"
 	echo "Columnstore Node Number is ${DBRM_WORKER}"
 	workernode $DBRM_WORKER &
+    sleep 3
 	controllernode &
+    sleep 3
 	PrimProc &
+    sleep 3
 	WriteEngineServer &
+    sleep 3
 	DMLProc &
+    sleep 3
 	DDLProc &
-	#sleep 5
-	#echo "Running Columnstore DB Builder"
-	#dbbuilder 7 docker_process_sql #1> /tmp/dbbuilder.log
+	sleep 5
+	echo "Running Columnstore DB Builder"
+	dbbuilder 7 mariadb #1> /tmp/dbbuilder.log
 	#flock -u "$fd_lock"
 	wait -n
 }
