@@ -124,7 +124,8 @@ VOLUME /var/lib/mysql
 
 COPY healthcheck.sh /usr/local/bin/healthcheck.sh
 COPY docker-entrypoint.sh /usr/local/bin/
-ENTRYPOINT ["docker-entrypoint.sh"]
+COPY cs-init.sh /bin/
+ENTRYPOINT ["cs-init.sh"]
 
 EXPOSE 3306
 CMD ["mariadbd"]

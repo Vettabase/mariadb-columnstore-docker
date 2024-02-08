@@ -95,7 +95,7 @@ docker_process_init_files() {
 	done
 }
 
-# arguments necessary to run "mysqld --verbose --help" successfully (used for testing configuration validity and for extracting default/configured values)
+# arguments necessary to run "mariadbd --verbose --help" successfully (used for testing configuration validity and for extracting default/configured values)
 _verboseHelpArgs=(
 	--verbose --help
 )
@@ -103,153 +103,18 @@ _verboseHelpArgs=(
 mysql_check_config() {
 	local toRun=( "$@" "${_verboseHelpArgs[@]}" ) errors
 	if ! errors="$("${toRun[@]}" 2>&1 >/dev/null)"; then
-		mysql_error $'mysqld failed while attempting to check config\n\tcommand was: '"${toRun[*]}"$'\n\t'"$errors"
+		mysql_error $'mariadbd failed while attempting to check config\n\tcommand was: '"${toRun[*]}"$'\n\t'"$errors"
 	fi
 }
 
 # Fetch value from server config
-# We use mysqld --verbose --help instead of my_print_defaults because the
+# We use mariadbd --verbose --help instead of my_print_defaults because the
 # latter only show values present in config files, and not server defaults
 mysql_get_config() {
 	local conf="$1"; shift
 	"$@" "${_verboseHelpArgs[@]}" 2>/dev/null \
 		| awk -v conf="$conf" '$1 == conf && /^[^ \t]/ { sub(/^[^ \t]+[ \t]+/, ""); print; exit }'
 	# match "datadir      /some/path with/spaces in/it here" but not "--xyz=abc\n     datadir (xyz)"
-}
-
-
-mariadb_configure_cross_join() {
-	mysql_note $"Setting up Columnstore Cross Join User"
-	CROSSENGINEJOIN_USER="${CROSSENGINEJOIN_USER:-cross_engine_joiner}"
-	CROSSENGINEJOIN_PASS="${CROSSENGINEJOIN_PASS:-$(pwgen --numerals --capitalize 32 1)}"
-
-	mcsSetConfig CrossEngineSupport User "${CROSSENGINEJOIN_USER}"
-	mcsSetConfig CrossEngineSupport Password "${CROSSENGINEJOIN_PASS}"
-	mcsSetConfig CrossEngineSupport host "127.0.0.1"
-
-	echo "CREATE USER '${CROSSENGINEJOIN_USER}'@'127.0.0.1' IDENTIFIED BY '${CROSSENGINEJOIN_PASS}';"
-	echo "GRANT SELECT, PROCESS ON *.* TO '${CROSSENGINEJOIN_USER}'@'127.0.0.1';"
-}
-
-mariadb_configure_s3() {
-
-	if [[ -z ${USE_S3_STORAGE}  ]]; then
-		mysql_note $"Missing USE_S3_STORAGE, Skipping S3 configuration"
-		return
-	fi
-
-	mysql_note $"Configuring S3"
-
-	declare -A S3_CNF
-	S3_CNF["s3"]="ON"
-
-	if [[ -n ${S3_BUCKET} ]]; then
-		S3_CNF["s3_bucket"]=${S3_BUCKET}
-	else
-		mysql_error $"USE_S3_STORAGE is set but missing S3_BUCKET"
-	fi
-
-	if [[ -n ${S3_REGION} ]]; then
-		S3_CNF["s3_region"]=${S3_REGION}
-	else
-		mysql_error $"USE_S3_STORAGE is set but missing S3_REGION"
-	fi
-
-	if [[ -n ${S3_ACCESS_KEY} ]]; then
-		S3_CNF["s3_access_key"]=${S3_ACCESS_KEY}
-	else
-		mysql_error $"USE_S3_STORAGE is set but missing S3_ACCESS_KEY"
-	fi
-
-	if [[ -n ${S3_SECRET_KEY} ]]; then
-		S3_CNF["s3_secret_key"]=${S3_SECRET_KEY}
-	else
-		mysql_error $"USE_S3_STORAGE is set but missing S3_SECRET_KEY"
-	fi
-
-	# Custom S3 Compatible host
-	if [[ -n ${S3_HOSTNAME} ]]; then
-		S3_CNF["s3_bucket"]=${S3_HOSTNAME}
-	fi
-
-	if [[ -n ${S3_PORT} ]]; then
-		if [[ -z ${S3_HOSTNAME} ]]; then
-			mysql_error $"S3_PORT configured but Missing S3_HOSTNAME"
-		fi
-		S3_CNF["s3_port"]=${S3_PORT}
-		S3_CNF["s3_use_http"]="ON"
-	fi
-
-	# Storage Manager endpoint URL and port
-	S3_ENDPOINT="${S3_ENDPOINT:-s3.${S3_REGION}.amazonaws.com}"
-	S3_ENDPOINT_PORT=""
-	if [[ -n ${S3_PORT} ]]; then
-		S3_ENDPOINT_PORT="port_number = ${S3_PORT}"
-	fi
-
-	S3_CONFIG_PATH="/etc/my.cnf.d/s3.cnf"
-	sed -i "s|^#plugin-maturity.*|plugin-maturity = alpha" $S3_CONFIG_PATH
-
-	for section in "mariadb" "aria_s3_copy"; do
-		echo "[${section}]" >> $S3_CONFIG_PATH
-		for	S3_VAR in ${S3_CNF}; do
-			mysql_note $"Setting ${S3_VAR} in section ${section}"
-			echo "${S3_VAR}=${!S3_VAR}" >> $S3_CONFIG_PATH
-		done
-		echo "" >> $S3_CONFIG_PATH
-	done
-
-    mysql_note $"Configuring StorageManager to use S3"
-    mcsSetConfig Installation DBRootStorageType "StorageManager"
-    mcsSetConfig StorageManager Enabled "Y"
-    mcsSetConfig SystemConfig DataFilePlugin "libcloudio.so"
-    sed -i "s|service = LocalStorage|service = S3|" /etc/columnstore/storagemanager.cnf
-    #sed -i "s|cache_size = 2g|cache_size = 4g|" /etc/columnstore/storagemanager.cnf
-    sed -i "s|^service =.*|service = S3|" /etc/columnstore/storagemanager.cnf
-    sed -i "s|^region =.*|region = ${S3_REGION}|" /etc/columnstore/storagemanager.cnf
-    sed -i "s|^bucket =.*|bucket = ${S3_BUCKET}|" /etc/columnstore/storagemanager.cnf
-    sed -i "s|^# endpoint =.*|endpoint = ${S3_ENDPOINT}\n${S3_PORT}|" /etc/columnstore/storagemanager.cnf
-    sed -i "s|^# aws_access_key_id =.*|aws_access_key_id = ${S3_ACCESS_KEY_ID}|" /etc/columnstore/storagemanager.cnf
-    sed -i "s|^# aws_secret_access_key =.*|aws_secret_access_key = ${S3_SECRET_ACCESS_KEY}|" /etc/columnstore/storagemanager.cnf
-    if ! /usr/bin/testS3Connection >/var/log/mariadb/columnstore/testS3Connection.log 2>&1; then
-		mysql_error $"Error: S3 Connectivity Failed"
-    fi
-}
-
-mariadb_configure_columnstore() {
-	mysql_note $"Configuring Columnstore"
-	CGROUP="${CGROUP:-./}"
-	mcsSetConfig SystemConfig CGroup "${CGROUP}"
-	echo "[mariadbd]" > /etc/my.cnf.d/lang.cnf
-	echo "collation_server=utf8_general_ci" >> /etc/my.cnf.d/lang.cnf
-	echo "character_set_server=utf8" >> /etc/my.cnf.d/lang.cnf
-}
-
-mariadb_start_columnstore() {
-	mysql_note $"Starting Columnstore"
-	# prevent nodes using shared storage manager from stepping on each other when initializing
-	# flock will open up an exclusive file lock to run atomic operations
-	#exec {fd_lock}>/var/lib/columnstore/storagemanager/storagemanager-lock
-	#flock -n "$fd_lock" || exit 0
-
-	NODE_NUMBER="${NODE_NUMBER:-1}"
-	MALLOC_CONF=''
-	LD_PRELOAD=$(ldconfig -p | grep -m1 libjemalloc | awk '{print $1}')
-	PYTHONPATH=/usr/share/columnstore/cmapi/deps
-	DBRM_WORKER="DBRM_Worker${NODE_NUMBER}"
-	mysql_note $"Columnstore Node Number is ${DBRM_WORKER}"
-	workernode $DBRM_WORKER &
-	controllernode &
-	PrimProc &
-	WriteEngineServer &
-	DMLProc &
-	DDLProc &
-	mysql_note $"Running Columnstore DB Builder"
-	dbbuilder 7 docker_process_sql #1> /tmp/dbbuilder.log
-	sleep 5
-	ps aux
-	#flock -u "$fd_lock"
-	#wait -n
 }
 
 # Do a temporary startup of the MariaDB server, for init purposes
@@ -278,7 +143,7 @@ docker_temp_server_start() {
 	fi
 }
 
-# Stop the server. When using a local socket file mysqladmin will block until
+# Stop the server. When using a local socket file mariadb-admin will block until
 # the shutdown is complete.
 docker_temp_server_stop() {
 	kill "$MARIADB_PID"
@@ -353,8 +218,8 @@ _mariadb_version() {
 docker_init_database_dir() {
 	mysql_note "Initializing database files"
 	installArgs=( --datadir="$DATADIR" --rpm --auth-root-authentication-method=normal )
-	# "Other options are passed to mysqld." (so we pass all "mysqld" arguments directly here)
-	mysql_install_db "${installArgs[@]}" "${@:2}" \
+	# "Other options are passed to mariadbd." (so we pass all "mariadbd" arguments directly here)
+	mariadb-install-db "${installArgs[@]}" "${@:2}" \
 		--skip-test-db \
 		--old-mode='UTF8_IS_UTF8MB3' \
 		--default-time-zone=SYSTEM --enforce-storage-engine= \
@@ -412,7 +277,7 @@ docker_exec_client() {
 	if [ -n "$MYSQL_DATABASE" ]; then
 		set -- --database="$MYSQL_DATABASE" "$@"
 	fi
-	mysql --protocol=socket -uroot -hlocalhost --socket="${SOCKET}" "$@"
+	mariadb --protocol=socket -uroot -hlocalhost --socket="${SOCKET}" "$@"
 }
 
 # Execute sql script, passed via stdin
@@ -452,14 +317,12 @@ create_replica_user() {
 
 # Initializes database with timezone info and root password, plus optional extra db/user
 docker_setup_db() {
-	#mariadb_configure_columnstore
-	#mariadb_configure_s3
 	# Load timezone info into database
 	if [ -z "$MARIADB_INITDB_SKIP_TZINFO" ]; then
 		# --skip-write-binlog usefully disables binary logging
 		# but also outputs LOCK TABLES to improve the IO of
 		# Aria (MDEV-23326) for 10.4+.
-		mysql_tzinfo_to_sql --skip-write-binlog /usr/share/zoneinfo \
+		mariadb-tzinfo-to-sql --skip-write-binlog /usr/share/zoneinfo \
 			| docker_process_sql --dont-use-mysql-root-password --database=mysql
 		# tell docker_process_sql to not use MYSQL_ROOT_PASSWORD since it is not set yet
 	fi
@@ -567,8 +430,6 @@ docker_setup_db() {
 		fi
 	fi
 
-	local createCrossEngineJoinUser=mariadb_configure_cross_join
-
 	# To create replica user
 	local createReplicaUser=
 	local changeMasterTo=
@@ -604,7 +465,6 @@ docker_setup_db() {
 
 		${rootLocalhostPass}
 		${rootCreate}
-		${createCrossEngineJoinUser}
 		${mysqlAtLocalhost}
 		${mysqlAtLocalhostGrants}
 		${healthCheckUser}
@@ -639,7 +499,7 @@ docker_mariadb_init()
 			if [ -f "$DATADIR/.init/backup-my.cnf" ]; then
 				mv "$DATADIR/.init/backup-my.cnf" "$DATADIR/.my.cnf"
 				mysql_note "Adding startup configuration:"
-				my_print_defaults --defaults-file="$DATADIR/.my.cnf" --mysqld
+				my_print_defaults --defaults-file="$DATADIR/.my.cnf" --mariadbd
 			fi
 			rm -rf "$DATADIR"/.init "$DATADIR"/.restore
 			if [ "$(id -u)" = "0" ]; then
@@ -697,7 +557,7 @@ docker_mariadb_backup_system()
 	fi
 
 	mysql_note "Backing up system database to $backup_db"
-	if ! mysqldump --skip-lock-tables --replace --databases mysql --socket="${SOCKET}" | zstd > "${DATADIR}/${backup_db}"; then
+	if ! mariadb-dump --skip-lock-tables --replace --databases mysql --socket="${SOCKET}" | zstd > "${DATADIR}/${backup_db}"; then
 		mysql_error "Unable backup system database for upgrade from $oldfullversion."
 	fi
 	mysql_note "Backing up complete"
@@ -708,7 +568,7 @@ docker_mariadb_backup_system()
 docker_mariadb_upgrade() {
 	if [ -z "$MARIADB_AUTO_UPGRADE" ] \
 		|| [ "$MARIADB_AUTO_UPGRADE" = 0 ]; then
-		mysql_note "MariaDB upgrade (mysql_upgrade) required, but skipped due to \$MARIADB_AUTO_UPGRADE setting"
+		mysql_note "MariaDB upgrade (mariadb-upgrade) required, but skipped due to \$MARIADB_AUTO_UPGRADE setting"
 		return
 	fi
 	mysql_note "Starting temporary server"
@@ -720,7 +580,7 @@ docker_mariadb_upgrade() {
 	docker_mariadb_backup_system
 
 	mysql_note "Starting mariadb-upgrade"
-	mysql_upgrade --upgrade-system-tables
+	mariadb-upgrade --upgrade-system-tables
 	mysql_note "Finished mariadb-upgrade"
 
 	mysql_note "Stopping temporary server"
@@ -748,7 +608,7 @@ _check_if_upgrade_is_needed() {
 	return 1
 }
 
-# check arguments for an option that would cause mysqld to stop
+# check arguments for an option that would cause mariadbd to stop
 # return true if there is one
 _mysql_want_help() {
 	local arg
@@ -763,9 +623,9 @@ _mysql_want_help() {
 }
 
 _main() {
-	# if command starts with an option, prepend mysqld
+	# if command starts with an option, prepend mariadbd
 	if [ "${1:0:1}" = '-' ]; then
-		set -- mysqld "$@"
+		set -- mariadbd "$@"
 	fi
 
 	#ENDOFSUBSTITUTIONS
@@ -777,12 +637,10 @@ _main() {
 		# Load various environment variables
 		docker_setup_env "$@"
 		docker_create_db_directories
-		mariadb_start_columnstore
 
 		# If container is started as root user, restart as dedicated mysql user
 		if [ "$(id -u)" = "0" ]; then
 			mysql_note "Switching to dedicated user 'mysql'"
-			ps aux
 			exec gosu mysql "${BASH_SOURCE[0]}" "$@"
 		fi
 
@@ -791,16 +649,16 @@ _main() {
 			docker_verify_minimum_env
 
 			docker_mariadb_init "$@"
-			# MDEV-27636 mariadb_upgrade --check-if-upgrade-is-needed cannot be run offline
-			#elif mysql_upgrade --check-if-upgrade-is-needed; then
-			elif _check_if_upgrade_is_needed; then
-				docker_mariadb_upgrade "$@"
-			fi
+		# MDEV-27636 mariadb_upgrade --check-if-upgrade-is-needed cannot be run offline
+		#elif mariadb-upgrade --check-if-upgrade-is-needed; then
+		elif _check_if_upgrade_is_needed; then
+			docker_mariadb_upgrade "$@"
 		fi
-		exec "$@"
-	}
-
-	# If we are sourced from elsewhere, don't perform any further actions
-	if ! _is_sourced; then
-		_main "$@"
 	fi
+	exec "$@"
+}
+
+# If we are sourced from elsewhere, don't perform any further actions
+if ! _is_sourced; then
+	_main "$@"
+fi
