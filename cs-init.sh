@@ -31,73 +31,88 @@ mariadb_configure_s3() {
 	if [[ -n ${S3_BUCKET} ]]; then
 		S3_CNF["s3_bucket"]=${S3_BUCKET}
 	else
-		mysql_error $"USE_S3_STORAGE is set but missing S3_BUCKET"
+		echo "ERROR USE_S3_STORAGE is set but missing S3_BUCKET"
+        exit 1
 	fi
 
-	if [[ -n ${S3_REGION} ]]; then
+	if [[ -n ${S3_REGION} ]] && [[ -z ${S3_HOSTNAME} ]]; then
 		S3_CNF["s3_region"]=${S3_REGION}
+        S3_ENDPOINT="${S3_ENDPOINT:-s3.${S3_REGION}.amazonaws.com}"
+    elif [[ -n {$S3_HOSNAME} ]]; then
+        S3_CNF["s3_host_name"]=${S3_HOSTNAME}
+        #S3_REGION=""
+		#S3_CNF["s3_region"]=${S3_REGION}
+        S3_ENDPOINT=${S3_HOSTNAME}
 	else
-		mysql_error $"USE_S3_STORAGE is set but missing S3_REGION"
+		echo "ERROR USE_S3_STORAGE is set but missing S3_REGION"
+        exit 1
 	fi
 
 	if [[ -n ${S3_ACCESS_KEY} ]]; then
 		S3_CNF["s3_access_key"]=${S3_ACCESS_KEY}
 	else
-		mysql_error $"USE_S3_STORAGE is set but missing S3_ACCESS_KEY"
+		echo "ERROR USE_S3_STORAGE is set but missing S3_ACCESS_KEY"
+        exit 1
 	fi
 
 	if [[ -n ${S3_SECRET_KEY} ]]; then
 		S3_CNF["s3_secret_key"]=${S3_SECRET_KEY}
 	else
-		mysql_error $"USE_S3_STORAGE is set but missing S3_SECRET_KEY"
+		echo "ERROR USE_S3_STORAGE is set but missing S3_SECRET_KEY"
+        exit 1
 	fi
 
 	# Custom S3 Compatible host
-	if [[ -n ${S3_HOSTNAME} ]]; then
-		S3_CNF["s3_bucket"]=${S3_HOSTNAME}
-	fi
-
 	if [[ -n ${S3_PORT} ]]; then
 		if [[ -z ${S3_HOSTNAME} ]]; then
-			mysql_error $"S3_PORT configured but Missing S3_HOSTNAME"
+			echo "ERROR S3_PORT configured but Missing S3_HOSTNAME"
+            exit 1
 		fi
 		S3_CNF["s3_port"]=${S3_PORT}
 		S3_CNF["s3_use_http"]="ON"
 	fi
 
 	# Storage Manager endpoint URL and port
-	S3_ENDPOINT="${S3_ENDPOINT:-s3.${S3_REGION}.amazonaws.com}"
-	S3_ENDPOINT_PORT=""
 	if [[ -n ${S3_PORT} ]]; then
 		S3_ENDPOINT_PORT="port_number = ${S3_PORT}"
+    else
+        S3_ENDPOINT_PORT=""
 	fi
 
 	S3_CONFIG_PATH="/etc/mysql/mariadb.conf.d/s3.cnf"
-	sed -i "s|^#plugin-maturity.*|plugin-maturity = alpha" $S3_CONFIG_PATH
+	#sed -i "s|^#plugin-maturity.*|plugin-maturity = alpha" $S3_CONFIG_PATH
 
 	for section in "mariadb" "aria_s3_copy"; do
 		echo "[${section}]" >> $S3_CONFIG_PATH
-		for	S3_VAR in ${S3_CNF}; do
-			echo "Setting ${S3_VAR} in section ${section}"
-			echo "${S3_VAR}=${!S3_VAR}" >> $S3_CONFIG_PATH
+		for	S3_VAR in ${!S3_CNF[@]}; do
+			echo "Setting ${S3_VAR}=${S3_CNF[$S3_VAR]} in section ${section}"
+			echo "${S3_VAR}=${S3_CNF[$S3_VAR]}" >> $S3_CONFIG_PATH
 		done
 		echo "" >> $S3_CONFIG_PATH
 	done
+
+    cat $S3_CONFIG_PATH
 
     echo "Configuring StorageManager to use S3"
     mcsSetConfig Installation DBRootStorageType "StorageManager"
     mcsSetConfig StorageManager Enabled "Y"
     mcsSetConfig SystemConfig DataFilePlugin "libcloudio.so"
-    sed -i "s|service = LocalStorage|service = S3|" /etc/columnstore/storagemanager.cnf
+    sed -i "s|^service = LocalStorage|service = S3|" /etc/columnstore/storagemanager.cnf
     #sed -i "s|cache_size = 2g|cache_size = 4g|" /etc/columnstore/storagemanager.cnf
-    sed -i "s|^service =.*|service = S3|" /etc/columnstore/storagemanager.cnf
-    sed -i "s|^region =.*|region = ${S3_REGION}|" /etc/columnstore/storagemanager.cnf
+    if [[ -n ${S3_REGION} ]]; then
+        sed -i "s|^region =.*|region = ${S3_REGION}|" /etc/columnstore/storagemanager.cnf
+    fi
     sed -i "s|^bucket =.*|bucket = ${S3_BUCKET}|" /etc/columnstore/storagemanager.cnf
-    sed -i "s|^# endpoint =.*|endpoint = ${S3_ENDPOINT}\n${S3_PORT}|" /etc/columnstore/storagemanager.cnf
-    sed -i "s|^# aws_access_key_id =.*|aws_access_key_id = ${S3_ACCESS_KEY_ID}|" /etc/columnstore/storagemanager.cnf
-    sed -i "s|^# aws_secret_access_key =.*|aws_secret_access_key = ${S3_SECRET_ACCESS_KEY}|" /etc/columnstore/storagemanager.cnf
+    sed -i "s|^# endpoint =.*|endpoint = ${S3_ENDPOINT}\n${S3_ENDPOINT_PORT}|" /etc/columnstore/storagemanager.cnf
+    sed -i "s|^# aws_access_key_id =.*|aws_access_key_id = ${S3_ACCESS_KEY}|" /etc/columnstore/storagemanager.cnf
+    sed -i "s|^# aws_secret_access_key =.*|aws_secret_access_key = ${S3_SECRET_KEY}|" /etc/columnstore/storagemanager.cnf
     if ! /usr/bin/testS3Connection >/var/log/mariadb/columnstore/testS3Connection.log 2>&1; then
+        echo ""
+        egrep -n '^service|^region|^bucket|^endpoint|^aws_*|^port_number' /etc/columnstore/storagemanager.cnf
+        echo ""
+        cat /var/log/mariadb/columnstore/testS3Connection.log 
 		echo "Error: S3 Connectivity Failed"
+        exit 1
     fi
 }
 
