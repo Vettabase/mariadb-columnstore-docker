@@ -430,6 +430,12 @@ docker_setup_db() {
 		fi
 	fi
 
+	# Cross Join User
+	local crossEngineJoinUser=$(mcsGetConfig CrossEngineSupport User)
+	local crossEngineJoinPass=$(mcsGetConfig CrossEngineSupport Password)
+	local crossEngineJoin="CREATE USER '${crossEngineJoinUser}'@'127.0.0.1' IDENTIFIED BY '${crossEngineJoinPass}';
+	GRANT SELECT, PROCESS ON *.* TO '${crossEngineJoinUser}'@'127.0.0.1';"
+
 	# To create replica user
 	local createReplicaUser=
 	local changeMasterTo=
@@ -658,6 +664,9 @@ _main() {
 	exec "$@"
 }
 
+if [[ $(id -u) = "0" ]]; then
+	cs-init.sh
+fi
 # If we are sourced from elsewhere, don't perform any further actions
 if ! _is_sourced; then
 	_main "$@"

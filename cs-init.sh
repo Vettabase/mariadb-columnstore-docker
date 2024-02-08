@@ -1,7 +1,7 @@
 #!/bin/bash
 
 mariadb_configure_columnstore() {
-	mysql_note $"Configuring Columnstore"
+	echo "Configuring Columnstore"
 	#CS_CGROUP="${CS_CGROUP:-./}"
 	#mcsSetConfig SystemConfig CGroup "${CS_CGROUP}"
 	LANG_CNF=/etc/mysql/mariadb.conf.d/lang.cnf
@@ -12,19 +12,18 @@ mariadb_configure_columnstore() {
 	CROSSENGINEJOIN_USER="${CROSSENGINEJOIN_USER:-cross_engine_joiner}"
 	CROSSENGINEJOIN_PASS="${CROSSENGINEJOIN_PASS:-$(pwgen --numerals --capitalize 32 1)}"
 
-	mcsSetConfig CrossEngineSupport User "${CROSSENGINEJOIN_USER}"
-	mcsSetConfig CrossEngineSupport Password "${CROSSENGINEJOIN_PASS}"
+	mcsSetConfig CrossEngineSupport User ${CROSSENGINEJOIN_USER}
+	mcsSetConfig CrossEngineSupport Password ${CROSSENGINEJOIN_PASS}
 	mcsSetConfig CrossEngineSupport host "127.0.0.1"
 }
 
 mariadb_configure_s3() {
-
 	if [[ -z ${USE_S3_STORAGE}  ]]; then
-		mysql_note $"Missing USE_S3_STORAGE, Skipping S3 configuration"
+		echo "Missing USE_S3_STORAGE, Skipping S3 configuration"
 		return
 	fi
 
-	mysql_note $"Configuring S3"
+	echo "Configuring S3"
 
 	declare -A S3_CNF
 	S3_CNF["s3"]="ON"
@@ -79,13 +78,13 @@ mariadb_configure_s3() {
 	for section in "mariadb" "aria_s3_copy"; do
 		echo "[${section}]" >> $S3_CONFIG_PATH
 		for	S3_VAR in ${S3_CNF}; do
-			mysql_note $"Setting ${S3_VAR} in section ${section}"
+			echo "Setting ${S3_VAR} in section ${section}"
 			echo "${S3_VAR}=${!S3_VAR}" >> $S3_CONFIG_PATH
 		done
 		echo "" >> $S3_CONFIG_PATH
 	done
 
-    mysql_note $"Configuring StorageManager to use S3"
+    echo "Configuring StorageManager to use S3"
     mcsSetConfig Installation DBRootStorageType "StorageManager"
     mcsSetConfig StorageManager Enabled "Y"
     mcsSetConfig SystemConfig DataFilePlugin "libcloudio.so"
@@ -98,12 +97,12 @@ mariadb_configure_s3() {
     sed -i "s|^# aws_access_key_id =.*|aws_access_key_id = ${S3_ACCESS_KEY_ID}|" /etc/columnstore/storagemanager.cnf
     sed -i "s|^# aws_secret_access_key =.*|aws_secret_access_key = ${S3_SECRET_ACCESS_KEY}|" /etc/columnstore/storagemanager.cnf
     if ! /usr/bin/testS3Connection >/var/log/mariadb/columnstore/testS3Connection.log 2>&1; then
-		mysql_error $"Error: S3 Connectivity Failed"
+		echo "Error: S3 Connectivity Failed"
     fi
 }
 
 mariadb_start_columnstore() {
-	mysql_note $"Starting Columnstore"
+	echo "Starting Columnstore"
 	# prevent nodes using shared storage manager from stepping on each other when initializing
 	# flock will open up an exclusive file lock to run atomic operations
 	#exec {fd_lock}>/var/lib/columnstore/storagemanager/storagemanager-lock
@@ -114,7 +113,7 @@ mariadb_start_columnstore() {
 	LD_PRELOAD=$(ldconfig -p | grep -m1 libjemalloc | awk '{print $1}')
 	PYTHONPATH=/usr/share/columnstore/cmapi/deps
 	DBRM_WORKER="DBRM_Worker${NODE_NUMBER}"
-	mysql_note $"Columnstore Node Number is ${DBRM_WORKER}"
+	echo "Columnstore Node Number is ${DBRM_WORKER}"
 	workernode $DBRM_WORKER &
 	controllernode &
 	PrimProc &
@@ -122,17 +121,12 @@ mariadb_start_columnstore() {
 	DMLProc &
 	DDLProc &
 	#sleep 5
-	#mysql_note $"Running Columnstore DB Builder"
+	#echo "Running Columnstore DB Builder"
 	#dbbuilder 7 docker_process_sql #1> /tmp/dbbuilder.log
 	#flock -u "$fd_lock"
 	wait -n
 }
-	local createCrossEngineJoinUser=$(mcsGetConfig CrossEngineSupport User)
-	local createCrossEngineJoinPassword=$(mcsGetConfig CrossEngineSupport Password)
-		CREATE USER '${createCrossEngineJoinUser}'@'127.0.0.1' IDENTIFIED BY '${createCrossEngineJoinPassword}';
-		GRANT SELECT, PROCESS ON *.* TO '${CROSSENGINEJOIN_USER}'@'127.0.0.1';
 
 mariadb_configure_columnstore
 mariadb_configure_s3
-
-/usr/local/bin/docker-entrypoint.sh
+mariadb_start_columnstore
