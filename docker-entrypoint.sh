@@ -119,7 +119,7 @@ mysql_get_config() {
 
 
 mariadb_configure_cross_join() {
-	mysql_note $"Setting up Cross Join User"
+	mysql_note $"Setting up Columnstore Cross Join User"
 	CROSSENGINEJOIN_USER="${CROSSENGINEJOIN_USER:-cross_engine_joiner}"
 	CROSSENGINEJOIN_PASS="${CROSSENGINEJOIN_PASS:-$(pwgen --numerals --capitalize 32 1)}"
 
@@ -134,6 +134,7 @@ mariadb_configure_cross_join() {
 mariadb_configure_s3() {
 
 	if [[ -z ${USE_S3_STORAGE}  ]]; then
+		mysql_note $"Missing USE_S3_STORAGE, Skipping S3 configuration"
 		return
 	fi
 
@@ -216,10 +217,12 @@ mariadb_configure_s3() {
 }
 
 mariadb_configure_columnstore() {
+	mysql_note $"Configuring Columnstore"
 	CGROUP="${CGROUP:-./}"
 	mcsSetConfig SystemConfig CGroup "${CGROUP}"
-	echo "collation_server=utf8_general_ci" >> /etc/my.cnf.d/columnstore.cnf
-	echo "character_set_server=utf8" >> /etc/my.cnf.d/columnstore.cnf
+	echo "[mariadbd]" > /etc/my.cnf.d/lang.cnf
+	echo "collation_server=utf8_general_ci" >> /etc/my.cnf.d/lang.cnf
+	echo "character_set_server=utf8" >> /etc/my.cnf.d/lang.cnf
 }
 
 mariadb_start_columnstore() {
@@ -242,7 +245,7 @@ mariadb_start_columnstore() {
 	DMLProc &
 	DDLProc &
 	mysql_note $"Running Columnstore DB Builder"
-	dbbuilder 7 docker_process_sql 1> /var/log/mariadb/columnstore/install/dbbuilder.log
+	dbbuilder 7 docker_process_sql #1> /tmp/dbbuilder.log
 	sleep 5
 	ps aux
 	#flock -u "$fd_lock"
@@ -449,6 +452,8 @@ create_replica_user() {
 
 # Initializes database with timezone info and root password, plus optional extra db/user
 docker_setup_db() {
+	#mariadb_configure_columnstore
+	#mariadb_configure_s3
 	# Load timezone info into database
 	if [ -z "$MARIADB_INITDB_SKIP_TZINFO" ]; then
 		# --skip-write-binlog usefully disables binary logging
@@ -665,7 +670,6 @@ docker_mariadb_init()
 		EOSQL
 	fi
 
-
 	mysql_note "Stopping temporary server"
 	docker_temp_server_stop
 	mysql_note "Temporary server stopped"
@@ -778,6 +782,7 @@ _main() {
 		# If container is started as root user, restart as dedicated mysql user
 		if [ "$(id -u)" = "0" ]; then
 			mysql_note "Switching to dedicated user 'mysql'"
+			ps aux
 			exec gosu mysql "${BASH_SOURCE[0]}" "$@"
 		fi
 
@@ -786,8 +791,6 @@ _main() {
 			docker_verify_minimum_env
 
 			docker_mariadb_init "$@"
-			mariadb_configure_columnstore
-			mariadb_configure_s3
 			# MDEV-27636 mariadb_upgrade --check-if-upgrade-is-needed cannot be run offline
 			#elif mysql_upgrade --check-if-upgrade-is-needed; then
 			elif _check_if_upgrade_is_needed; then
