@@ -98,9 +98,7 @@ mariadb_configure_s3() {
     mcsSetConfig StorageManager Enabled "Y"
     mcsSetConfig SystemConfig DataFilePlugin "libcloudio.so"
     sed -i "s|^service = LocalStorage|service = S3|" /etc/columnstore/storagemanager.cnf
-    if [[ ! -z ${CS_CACHE_SIZE} ]]; then
-        sed -i "s|cache_size =.*|cache_size = ${CS_CACHE_SIZE}|" /etc/columnstore/storagemanager.cnf
-    fi
+    #sed -i "s|cache_size = 2g|cache_size = 4g|" /etc/columnstore/storagemanager.cnf
     if [[ -n ${S3_REGION} ]]; then
         sed -i "s|^region =.*|region = ${S3_REGION}|" /etc/columnstore/storagemanager.cnf
     fi
