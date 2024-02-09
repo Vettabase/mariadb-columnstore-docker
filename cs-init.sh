@@ -40,8 +40,6 @@ mariadb_configure_s3() {
         S3_ENDPOINT="${S3_ENDPOINT:-s3.${S3_REGION}.amazonaws.com}"
     elif [[ -n {$S3_HOSNAME} ]]; then
         S3_CNF["s3_host_name"]=${S3_HOSTNAME}
-        #S3_REGION=""
-		#S3_CNF["s3_region"]=${S3_REGION}
         S3_ENDPOINT=${S3_HOSTNAME}
 	else
 		echo "ERROR USE_S3_STORAGE is set but missing S3_REGION"
@@ -80,7 +78,9 @@ mariadb_configure_s3() {
 	fi
 
 	S3_CONFIG_PATH="/etc/mysql/mariadb.conf.d/s3.cnf"
-	#sed -i "s|^#plugin-maturity.*|plugin-maturity = alpha" $S3_CONFIG_PATH
+    echo "[mariadbd]" > $S3_CONFIG_PATH
+    echo "plugin-maturity = alpha" >> $S3_CONFIG_PATH
+	echo "plugin_load_add = ha_s3" >> $S3_CONFIG_PATH
 
 	for section in "mariadb" "aria_s3_copy"; do
 		echo "[${section}]" >> $S3_CONFIG_PATH
@@ -98,7 +98,9 @@ mariadb_configure_s3() {
     mcsSetConfig StorageManager Enabled "Y"
     mcsSetConfig SystemConfig DataFilePlugin "libcloudio.so"
     sed -i "s|^service = LocalStorage|service = S3|" /etc/columnstore/storagemanager.cnf
-    #sed -i "s|cache_size = 2g|cache_size = 4g|" /etc/columnstore/storagemanager.cnf
+    if [[ ! -z ${CS_CACHE_SIZE} ]]; then
+        sed -i "s|cache_size =.*|cache_size = ${CS_CACHE_SIZE}|" /etc/columnstore/storagemanager.cnf
+    fi
     if [[ -n ${S3_REGION} ]]; then
         sed -i "s|^region =.*|region = ${S3_REGION}|" /etc/columnstore/storagemanager.cnf
     fi
