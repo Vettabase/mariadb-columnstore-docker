@@ -76,3 +76,22 @@ TO DO:
 * Add recipes for Podman
 * Inherit AWS credentials from user environment
 * Make AWS credentials optoinally mountable
+
+## Maintainers and Credits
+
+This is a [Vettabase](https://vettabase.com) project.
+
+This project was originally developed and is currently maintained
+by Richard Bensley <richard.bensley@vettabase.com>.
+
+Anyone who makes a relevant contribution to this project will be
+kudoed here, unless they ask not to be mentioned.
+
+## Copyright and License
+
+Copyright © Vettabase 2024
+
+This project is distributed under the terms of the GPL, version 3.
+
+If you haven't received a copy of the license, please find it here:
+https://www.gnu.org/licenses/gpl-3.0.txt
