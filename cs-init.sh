@@ -116,37 +116,37 @@ mariadb_configure_s3() {
     fi
 }
 
-mariadb_start_columnstore() {
-	echo "Starting Columnstore"
+#mariadb_start_columnstore() {
+	#echo "Starting Columnstore"
 	# prevent nodes using shared storage manager from stepping on each other when initializing
 	# flock will open up an exclusive file lock to run atomic operations
 	#exec {fd_lock}>/var/lib/columnstore/storagemanager/storagemanager-lock
 	#flock -n "$fd_lock" || exit 0
 
-	NODE_NUMBER="${NODE_NUMBER:-1}"
-	MALLOC_CONF=''
-	LD_PRELOAD=$(ldconfig -p | grep -m1 libjemalloc | awk '{print $1}')
-	PYTHONPATH=/usr/share/columnstore/cmapi/deps
-	DBRM_WORKER="DBRM_Worker${NODE_NUMBER}"
-	echo "Columnstore Node Number is ${DBRM_WORKER}"
-	workernode $DBRM_WORKER &
-    sleep 3
-	controllernode &
-    sleep 3
-	PrimProc &
-    sleep 3
-	WriteEngineServer &
-    sleep 3
-	DMLProc &
-    sleep 3
-	DDLProc &
-	sleep 5
-	echo "Running Columnstore DB Builder"
-	dbbuilder 7 mariadb #1> /tmp/dbbuilder.log
-	#flock -u "$fd_lock"
-	wait -n
-}
+	#NODE_NUMBER="${NODE_NUMBER:-1}"
+	#MALLOC_CONF=''
+	#LD_PRELOAD=$(ldconfig -p | grep -m1 libjemalloc | awk '{print $1}')
+	#PYTHONPATH=/usr/share/columnstore/cmapi/deps
+	#DBRM_WORKER="DBRM_Worker${NODE_NUMBER}"
+	#echo "Columnstore Node Number is ${DBRM_WORKER}"
+	#workernode $DBRM_WORKER &
+    #sleep 3
+#	controllernode &
+#    sleep 3
+#	PrimProc &
+#    sleep 3
+#	WriteEngineServer &
+#    sleep 3
+#	DMLProc &
+#    sleep 3
+#	DDLProc &
+#	sleep 5
+#	echo "Running Columnstore DB Builder"
+#	dbbuilder 7 mariadb #1> /tmp/dbbuilder.log
+#	#flock -u "$fd_lock"
+#	wait -n
+#}
 
 mariadb_configure_columnstore
 mariadb_configure_s3
-mariadb_start_columnstore
+#mariadb_start_columnstore

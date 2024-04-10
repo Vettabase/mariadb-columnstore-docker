@@ -28,6 +28,7 @@ RUN set -eux; \
     gpgv \
     libjemalloc2 \
     pwgen \
+    supervisor \
     tzdata \
     xz-utils \
     zstd ; \
@@ -67,14 +68,12 @@ RUN mkdir /docker-entrypoint-initdb.d
 ENV LANG C.UTF-8
 
 # bashbrew-architectures: amd64 arm64v8 ppc64le s390x
-ARG MARIADB_VERSION=1:10.11.6+maria~ubu2204
-ENV MARIADB_VERSION $MARIADB_VERSION
 # release-status:Stable
 # release-support-type:Long Term Support
 # (https://downloads.mariadb.org/rest-api/mariadb/)
 
 # Allowing overriding of REPOSITORY, a URL that includes suite and component for testing and Enterprise Versions
-ARG REPOSITORY="http://archive.mariadb.org/mariadb-10.11.6/repo/ubuntu/ jammy main main/debug"
+ARG REPOSITORY="http://archive.mariadb.org/mariadb-10.11/repo/ubuntu/ jammy main main/debug"
 
 RUN set -e;\
     echo "deb ${REPOSITORY}" > /etc/apt/sources.list.d/mariadb.list; \
@@ -98,7 +97,7 @@ RUN set -ex; \
     # postinst script creates a datadir, so avoid creating it by faking its existance.
     mkdir -p /var/lib/mysql/mysql ; touch /var/lib/mysql/mysql/user.frm ; \
     # mariadb-backup is installed at the same time so that `mysql-common` is only installed once from just mariadb repos
-    apt-get install -y --no-install-recommends mariadb-server="$MARIADB_VERSION" mariadb-backup mariadb-plugin-columnstore mariadb-plugin-s3 socat \
+    apt-get install -y --no-install-recommends mariadb-server mariadb-backup mariadb-plugin-columnstore mariadb-plugin-s3 socat \
     ; \
     rm -rf /var/lib/apt/lists/*; \
     # purge and re-create /var/lib/mysql with appropriate ownership
@@ -122,10 +121,19 @@ RUN set -ex; \
 
 VOLUME /var/lib/mysql
 
+ENV NODE_NUMBER ${NODE_NUMBER:-1}
+ENV MALLOC_CONF ${MALLOC_CONF:-''}
+RUN LD_PRELOAD $(ldconfig -p | grep -m1 libjemalloc | awk '{print $1}')
+ENV PYTHONPATH=/usr/share/columnstore/cmapi/deps
+ENV DBRM_WORKER="DBRM_Worker${NODE_NUMBER}"
+RUN echo "Columnstore Node Number is ${DBRM_WORKER}"
+
 COPY healthcheck.sh /usr/local/bin/healthcheck.sh
 COPY docker-entrypoint.sh /usr/local/bin/
 COPY cs-init.sh /bin/
+COPY workernode.sh /bin/
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 ENTRYPOINT ["docker-entrypoint.sh"]
 
 EXPOSE 3306
-CMD ["mariadbd"]
+CMD ["supervisord"]
