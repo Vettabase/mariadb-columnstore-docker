@@ -147,6 +147,7 @@ mariadb_configure_s3() {
 #	wait -n
 #}
 
+export LD_PRELOAD=$(ldconfig -p | grep -m1 libjemalloc | awk '{print $1}')
 mariadb_configure_columnstore
 mariadb_configure_s3
 #mariadb_start_columnstore

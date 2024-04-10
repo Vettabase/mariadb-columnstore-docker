@@ -123,17 +123,15 @@ VOLUME /var/lib/mysql
 
 ENV NODE_NUMBER ${NODE_NUMBER:-1}
 ENV MALLOC_CONF ${MALLOC_CONF:-''}
-RUN LD_PRELOAD $(ldconfig -p | grep -m1 libjemalloc | awk '{print $1}')
+#ENV LD_PRELOAD $(ldconfig -p | grep -m1 libjemalloc | awk '{print $1}')
 ENV PYTHONPATH=/usr/share/columnstore/cmapi/deps
 ENV DBRM_WORKER="DBRM_Worker${NODE_NUMBER}"
-RUN echo "Columnstore Node Number is ${DBRM_WORKER}"
+RUN echo "ColumnStore Node Number is ${DBRM_WORKER}"
 
-COPY healthcheck.sh /usr/local/bin/healthcheck.sh
 COPY docker-entrypoint.sh /usr/local/bin/
 COPY cs-init.sh /bin/
-COPY workernode.sh /bin/
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 ENTRYPOINT ["docker-entrypoint.sh"]
 
 EXPOSE 3306
-CMD ["supervisord"]
+CMD ["supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
