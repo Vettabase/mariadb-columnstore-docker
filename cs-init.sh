@@ -110,41 +110,72 @@ mariadb_configure_s3() {
         echo ""
         egrep -n '^service|^region|^bucket|^endpoint|^aws_*|^port_number' /etc/columnstore/storagemanager.cnf
         echo ""
-        cat /var/log/mariadb/columnstore/testS3Connection.log 
+        cat /var/log/mariadb/columnstore/testS3Connection.log
 		echo "Error: S3 Connectivity Failed"
         exit 1
     fi
 }
 
 mariadb_start_columnstore() {
-	echo "Starting Columnstore"
-	# prevent nodes using shared storage manager from stepping on each other when initializing
-	# flock will open up an exclusive file lock to run atomic operations
-	#exec {fd_lock}>/var/lib/columnstore/storagemanager/storagemanager-lock
-	#flock -n "$fd_lock" || exit 0
+    # Similar process to mariadb-columnstore-start
+    tmpDir=`/usr/bin/mcsGetConfig SystemConfig SystemTempFileDir`
+    scratchDir=$tmpDir`/usr/bin/mcsGetConfig SystemConfig hdfsRdwrScratch`
+    mkdir $tmpDir >/dev/null 2>&1
+    mkdir $scratchDir >/dev/null 2>&1
+    chmod 777 $tmpDir
+    chmod 777 $scratchDir
 
-	NODE_NUMBER="${NODE_NUMBER:-1}"
-	MALLOC_CONF=''
-	LD_PRELOAD=$(ldconfig -p | grep -m1 libjemalloc | awk '{print $1}')
-	PYTHONPATH=/usr/share/columnstore/cmapi/deps
-	DBRM_WORKER="DBRM_Worker${NODE_NUMBER}"
+    chown -R mysql:mysql /var/log/mariadb/columnstore
+    chown -R mysql:mysql /etc/columnstore
+    chown -R mysql:mysql /var/lib/columnstore
+    chown -R mysql:mysql $tmpDir
+    chmod 777 /dev/shm
+
+    mkdir -p /var/lib/columnstore/storagemanager
+    chown -R mysql:mysql /var/lib/columnstore/storagemanager
+    IFLAG=/var/lib/columnstore/storagemanager/storagemanager-lock
+
+    exec {fd_lock}>/var/lib/columnstore/data1/dbroot1-lock
+    flock -x "$fd_lock"
+
+    flock -u "$fd_lock"
+
+    echo "========================================="
+	echo "Starting Columnstore"
+	exec {fd_lock}>/var/lib/columnstore/storagemanager/storagemanager-lock
+	flock -n "$fd_lock" || echo "Could not obtain lock for storagemanager"
+
+	export NODE_NUMBER="${NODE_NUMBER:-1}"
+	export MALLOC_CONF=''
+    export JEMALLOC_PATH="/usr/lib/x86_64-linux-gnu/libjemalloc.so.2"
+	export LD_PRELOAD=$JEMALLOC_PATH
+	export PYTHONPATH=/usr/share/columnstore/cmapi/deps
+	export DBRM_WORKER="DBRM_Worker${NODE_NUMBER}"
 	echo "Columnstore Node Number is ${DBRM_WORKER}"
+    echo "Starting workingnode"
 	workernode $DBRM_WORKER &
+    echo
     sleep 3
+    echo "Starting contollernode"
 	controllernode &
     sleep 3
+    echo "Starting primproc"
 	PrimProc &
     sleep 3
+    echo "Starting writeengineserver"
 	WriteEngineServer &
     sleep 3
+    echo "Starting dmlproc"
 	DMLProc &
     sleep 3
+    echo "Starting ddlproc"
 	DDLProc &
 	sleep 5
 	echo "Running Columnstore DB Builder"
 	dbbuilder 7 mariadb #1> /tmp/dbbuilder.log
-	#flock -u "$fd_lock"
+    flock -u "$fd_lock"
 	wait -n
+    echo "========================================="
 }
 
 mariadb_configure_columnstore
