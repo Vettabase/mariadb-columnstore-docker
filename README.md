@@ -1,6 +1,6 @@
 # MariaDB Columnstore Docker Image
 
-This is a fork of [mariadb-columnstore-docker](https://github.com/mariadb-corporation/mariadb-columnstore-docker/tree/master) maintained by [Vettabase](https://vettabase.com/).
+This is a fork of [mariadb-columnstore-docker](https://github.com/mariadb-corporation/mariadb-columnstore-docker/tree/master) developed by [Vettabase](https://vettabase.com/).
 The aim of this fork is to keep an updated version of MariaDB Community edition with Columnstore and the S3 engine for use by the community and production installations.
 
 The official MariaDB docker currently does not support Columnstore of the S3 engine, an [issue](https://github.com/MariaDB/mariadb-docker/issues/457) is already open to get this resolved.
@@ -81,8 +81,8 @@ TO DO:
 
 This is a [Vettabase](https://vettabase.com) project.
 
-This project was originally developed and is currently maintained
-by Richard Bensley <richard.bensley@vettabase.com>.
+This project was originally developed 
+by Richard Bensley.
 
 Anyone who makes a relevant contribution to this project will be
 kudoed here, unless they ask not to be mentioned.
